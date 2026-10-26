@@ -1,0 +1,29 @@
+# Backend (Maven / Java)
+backend/target/
+*.class
+*.log
+hs_err_pid*
+
+# Frontend (Angular / Node)
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+
+# Environment and secrets: never commit real values
+.env
+*.env.local
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# End-to-end tests (Playwright)
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/

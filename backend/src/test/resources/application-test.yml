@@ -1,0 +1,10 @@
+masar:
+  seed:
+    enabled: false
+  jwt:
+    secret: test-secret-that-is-long-enough-for-hs256-0123
+  # High limits so normal tests never hit them; RateLimitTest checks the limiter on its own.
+  # حدود عالية حتى ما توصلها الاختبارات العادية؛ واختبار RateLimitTest يفحص المحدّد لحاله.
+  rate-limit:
+    bookings: 1000
+    lookups: 1000
