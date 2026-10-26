@@ -1,0 +1,91 @@
+# Runs on every push and pull request: backend tests on a real PostgreSQL, frontend checks, then the full stack in Docker with browser tests.
+# يشتغل مع كل push وpull request: اختبارات الباكند على PostgreSQL حقيقي، فحوصات الفرونت، ثم النظام كامل في Docker مع اختبارات المتصفح.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      # Testcontainers starts PostgreSQL 17 in Docker, which GitHub's Ubuntu runners provide.
+      # Testcontainers يشغّل PostgreSQL 17 داخل Docker، وهو متوفر في أجهزة Ubuntu من GitHub.
+      - run: ./mvnw -B verify
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run check:i18n
+      - run: npm run test:ci
+      - run: npm run build
+
+  e2e:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # A throwaway secret just for this CI run. / مفتاح مؤقت لهذا التشغيل فقط.
+      - name: Create .env
+        run: |
+          echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')" > .env
+          echo "DB_PASSWORD=ci-$(openssl rand -hex 8)" >> .env
+          # The browser tests book many times from one IP, so the anti-spam limits are raised for CI only.
+          # اختبارات المتصفح تحجز مرات كثيرة من نفس الـ IP، فنرفع حدود منع الإزعاج في CI فقط.
+          echo "RATE_LIMIT_BOOKINGS=200" >> .env
+          echo "RATE_LIMIT_LOOKUPS=500" >> .env
+      # Builds the real Dockerfiles, so a broken image fails CI. / يبني ملفات Dockerfile الحقيقية، فأي صورة معطوبة تفشّل CI.
+      - run: docker compose up -d --build --wait
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run typecheck
+          npx playwright test
+      # Print the container state and logs in the job output too, so a failure can be read without downloading anything.
+      # نطبع حالة الحاويات وسجلاتها في مخرجات المهمة أيضًا، حتى نقرأ سبب الفشل بدون تحميل أي ملف.
+      - if: failure()
+        run: |
+          docker compose ps -a
+          docker inspect --format '{{json .State.Health}}' $(docker compose ps -aq frontend) || true
+          docker compose logs --no-color --tail=150
+          docker compose logs --no-color > compose.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            compose.log

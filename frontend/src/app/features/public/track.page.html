@@ -1,0 +1,188 @@
+<div class="page-narrow">
+  @if (view(); as v) {
+    <section class="track-result" data-testid="track-result" aria-live="polite">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow" dir="ltr">{{ v.reference }}</p>
+          <h1>
+            {{
+              'track.requestFor'
+                | t: { service: serviceLabel(), district: v.district, city: ('city.' + v.city | t) }
+            }}
+          </h1>
+          <p>
+            <app-status-badge [status]="v.status" />
+            <span data-testid="track-status-text">{{ 'track.statusText.' + v.status | t }}</span>
+          </p>
+        </div>
+        <div class="page-header__actions">
+          <button type="button" class="btn btn--small" (click)="refresh()" [disabled]="busy()">
+            {{ 'track.refresh' | t }}
+          </button>
+        </div>
+      </header>
+
+      @if (errorText(); as message) {
+        <div class="alert alert--danger" role="alert" data-testid="track-error">{{ message }}</div>
+      }
+
+      <div class="card">
+        <app-status-stepper [status]="v.status" [reached]="reached()" label="track.progress" />
+      </div>
+
+      @if (v.status === 'REJECTED' && v.rejectReason) {
+        <div class="alert alert--info" dir="auto">
+          {{ 'track.rejectReason' | t: { reason: v.rejectReason } }}
+        </div>
+      }
+      @if (v.status === 'CANCELLED' && v.cancelReason) {
+        <div class="alert alert--warning" dir="auto">
+          {{ 'track.cancelReason' | t: { reason: v.cancelReason } }}
+        </div>
+      }
+
+      <section class="card" aria-labelledby="quote-title">
+        <div class="card__header">
+          <h2 id="quote-title">{{ 'track.quoteTitle' | t }}</h2>
+          @if (v.quote; as q) {
+            <span class="muted">{{
+              'track.validUntil' | t: { date: fmt.plainDate(q.validUntil) }
+            }}</span>
+          }
+        </div>
+        @if (v.quote; as q) {
+          <app-quote-view [quote]="q" />
+          @if (v.status === 'QUOTED') {
+            @if (q.expired) {
+              <div class="alert alert--warning" role="status">
+                {{ 'track.expired' | t: { date: fmt.plainDate(q.validUntil) } }}
+              </div>
+            } @else {
+              <div class="form-actions">
+                <button
+                  type="button"
+                  class="btn"
+                  (click)="reject()"
+                  [disabled]="busy()"
+                  data-testid="quote-reject"
+                >
+                  {{ 'track.reject' | t }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn--primary"
+                  (click)="accept()"
+                  [disabled]="busy()"
+                  data-testid="quote-accept"
+                >
+                  <app-icon name="check" /> {{ 'track.accept' | t }}
+                </button>
+              </div>
+            }
+          }
+        } @else {
+          <p class="muted">{{ 'track.quoteWaiting' | t }}</p>
+        }
+      </section>
+
+      <section class="card" aria-labelledby="visit-title">
+        <h2 id="visit-title">{{ 'track.visit' | t }}</h2>
+        <dl class="detail-list">
+          <div>
+            <dt>{{ 'track.preferred' | t }}</dt>
+            <dd>{{ fmt.plainDate(v.preferredDate) }} · {{ 'slot.' + v.preferredSlot | t }}</dd>
+          </div>
+          @if (v.scheduledStart) {
+            <div>
+              <dt>{{ 'track.time' | t }}</dt>
+              <dd data-testid="track-visit">
+                {{ fmt.date(v.scheduledStart) }} ·
+                {{ fmt.timeRange(v.scheduledStart, v.scheduledEnd) }}
+              </dd>
+            </div>
+          }
+          @if (v.technicianName) {
+            <div>
+              <dt>{{ 'track.technician' | t }}</dt>
+              <dd>
+                <bdi>{{ v.technicianName }}</bdi>
+              </dd>
+            </div>
+          }
+        </dl>
+        @if (v.completedAt) {
+          <p class="alert alert--success">
+            {{ 'track.completedOn' | t: { date: fmt.dateTime(v.completedAt) } }}
+          </p>
+        }
+      </section>
+
+      <section class="card" aria-labelledby="history-title">
+        <h2 id="history-title">{{ 'track.history' | t }}</h2>
+        <ol class="timeline">
+          @for (h of v.history; track $index) {
+            <li>
+              <span class="timeline__dot" aria-hidden="true"></span>
+              <div class="timeline__body">
+                <strong>{{ 'status.' + h.status | t }}</strong>
+                <span class="timeline__meta">{{ fmt.dateTime(h.at) }}</span>
+              </div>
+            </li>
+          }
+        </ol>
+      </section>
+
+      <button type="button" class="btn" (click)="reset()">{{ 'track.another' | t }}</button>
+    </section>
+  } @else {
+    <header class="page-header page-header--center">
+      <div>
+        <h1>{{ 'track.title' | t }}</h1>
+        <p>{{ 'track.subtitle' | t }}</p>
+      </div>
+    </header>
+    <form class="card track-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      @if (errorText(); as message) {
+        <div class="alert alert--danger" role="alert" data-testid="track-error">{{ message }}</div>
+      }
+      <div class="field">
+        <label for="t-ref">{{ 'track.reference' | t }}</label>
+        <input
+          id="t-ref"
+          formControlName="reference"
+          dir="ltr"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="20"
+          [placeholder]="'track.referencePlaceholder' | t"
+          aria-describedby="t-ref-err"
+        />
+        <app-field-error [control]="form.controls.reference" id="t-ref-err" />
+      </div>
+      <div class="field">
+        <label for="t-phone">{{ 'track.phone' | t }}</label>
+        <input
+          id="t-phone"
+          type="tel"
+          inputmode="tel"
+          formControlName="phone"
+          dir="ltr"
+          maxlength="20"
+          autocomplete="tel"
+          placeholder="05XXXXXXXX"
+          aria-describedby="t-phone-err"
+        />
+        <app-field-error [control]="form.controls.phone" id="t-phone-err" />
+      </div>
+      <button
+        type="submit"
+        class="btn btn--primary btn--block"
+        [disabled]="busy()"
+        data-testid="track-submit"
+      >
+        {{ (busy() ? 'track.searching' : 'track.submit') | t }}
+      </button>
+    </form>
+  }
+</div>

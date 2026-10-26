@@ -1,0 +1,110 @@
+<!-- Keyboard users can jump straight to the content instead of tabbing through the whole menu. -->
+<!-- مستخدم لوحة المفاتيح يقدر ينتقل للمحتوى مباشرة بدل المرور على القائمة كاملة. -->
+<a class="skip-link" href="#main">{{ 'app.skipToContent' | t }}</a>
+
+<div class="layout" [class.layout--menu-open]="menuOpen()">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__brand">
+      <span class="logo" aria-hidden="true">M</span>
+      <div>
+        <strong>{{ 'app.name' | t }}</strong>
+        <small>{{ 'app.staffTagline' | t }}</small>
+      </div>
+      <button
+        type="button"
+        class="icon-btn sidebar__close"
+        (click)="menuOpen.set(false)"
+        [attr.aria-label]="'nav.closeMenu' | t"
+      >
+        <app-icon name="x" />
+      </button>
+    </div>
+
+    <nav [attr.aria-label]="'nav.main' | t">
+      @for (section of visibleSections(); track section.title) {
+        <p class="nav-section">{{ section.title | t }}</p>
+        <ul>
+          @for (item of section.items; track item.path) {
+            <li>
+              <!-- routerLinkActive adds the class and aria-current="page" on the current page. -->
+              <!-- routerLinkActive يضيف الكلاس وaria-current="page" للصفحة الحالية. -->
+              <a
+                class="nav-link"
+                [routerLink]="item.path"
+                routerLinkActive="nav-link--active"
+                ariaCurrentWhenActive="page"
+              >
+                <app-icon [name]="item.icon" />
+                <span>{{ item.label | t }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+      <div class="nav-sep" aria-hidden="true"></div>
+      <ul>
+        <li>
+          <a class="nav-link" routerLink="/">
+            <app-icon name="globe" />
+            <span>{{ 'nav.publicSite' | t }}</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- Dark overlay behind the open drawer on mobile; clicking it closes the menu. -->
+  <!-- طبقة معتمة خلف القائمة المفتوحة في الجوال؛ الضغط عليها يقفل القائمة. -->
+  <div class="backdrop" (click)="menuOpen.set(false)" aria-hidden="true"></div>
+
+  <div class="main-col">
+    <header class="topbar">
+      <button
+        type="button"
+        class="icon-btn topbar__menu"
+        (click)="menuOpen.set(true)"
+        [attr.aria-label]="'nav.menu' | t"
+        aria-controls="sidebar"
+        [attr.aria-expanded]="menuOpen()"
+      >
+        <app-icon name="menu" />
+      </button>
+      <div class="topbar__spacer"></div>
+      <button
+        type="button"
+        class="btn btn--small lang-switch"
+        (click)="i18n.toggle()"
+        [attr.aria-label]="'app.switchToLabel' | t"
+        [attr.lang]="i18n.lang() === 'ar' ? 'en' : 'ar'"
+        data-testid="lang-switch"
+      >
+        <app-icon name="globe" /> {{ 'app.switchTo' | t }}
+      </button>
+      @if (auth.user(); as user) {
+        <div class="user-chip">
+          <span class="avatar" aria-hidden="true">{{ initial() }}</span>
+          <span class="user-chip__text">
+            <strong
+              ><bdi>{{ user.fullName }}</bdi></strong
+            >
+            <small>{{ 'roles.' + user.role | t }}</small>
+          </span>
+        </div>
+      }
+      <button
+        type="button"
+        class="icon-btn"
+        (click)="auth.logout()"
+        data-testid="logout"
+        [attr.aria-label]="'nav.logout' | t"
+        [title]="'nav.logout' | t"
+      >
+        <app-icon name="logout" [flip]="true" />
+      </button>
+    </header>
+
+    <main id="main" class="content" tabindex="-1">
+      <router-outlet />
+    </main>
+  </div>
+</div>

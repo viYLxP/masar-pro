@@ -1,0 +1,149 @@
+<header class="page-header">
+  <div>
+    <h1>{{ 'requests.title' | t }}</h1>
+    <p>{{ 'requests.subtitle' | t }}</p>
+  </div>
+  <div class="page-header__actions">
+    <a class="btn btn--primary" routerLink="/app/requests/new" data-testid="new-request">
+      <app-icon name="plus" /> {{ 'nav.newRequest' | t }}
+    </a>
+  </div>
+</header>
+
+<div class="toolbar" role="search">
+  <label class="search">
+    <span class="visually-hidden">{{ 'common.search' | t }}</span>
+    <app-icon name="search" />
+    <input
+      type="search"
+      [value]="searchText()"
+      (input)="onSearch($any($event.target).value)"
+      [placeholder]="'requests.searchPlaceholder' | t"
+      data-testid="request-search"
+    />
+  </label>
+  <label>
+    <span class="visually-hidden">{{ 'common.status' | t }}</span>
+    <select (change)="setFilter('status', $any($event.target).value)" data-testid="filter-status">
+      <option value="" [selected]="!status()">{{ 'common.anyStatus' | t }}</option>
+      @for (s of statuses; track s) {
+        <option [value]="s" [selected]="status() === s">{{ 'status.' + s | t }}</option>
+      }
+    </select>
+  </label>
+  <label>
+    <span class="visually-hidden">{{ 'common.city' | t }}</span>
+    <select (change)="setFilter('city', $any($event.target).value)">
+      <option value="" [selected]="!city()">{{ 'common.anyCity' | t }}</option>
+      @for (c of cities; track c) {
+        <option [value]="c" [selected]="city() === c">{{ 'city.' + c | t }}</option>
+      }
+    </select>
+  </label>
+  <label>
+    <span class="visually-hidden">{{ 'common.service' | t }}</span>
+    <select (change)="setFilter('service', $any($event.target).value)">
+      <option value="" [selected]="!service()">{{ 'common.anyService' | t }}</option>
+      @for (s of services.value() ?? []; track s.id) {
+        <option [value]="s.id" [selected]="service() === '' + s.id">{{ name(s) }}</option>
+      }
+    </select>
+  </label>
+  <label>
+    <span class="visually-hidden">{{ 'common.technician' | t }}</span>
+    <select (change)="setFilter('technician', $any($event.target).value)">
+      <option value="" [selected]="!technician()">{{ 'common.anyTechnician' | t }}</option>
+      @for (u of technicians.value() ?? []; track u.id) {
+        <option [value]="u.id" [selected]="technician() === '' + u.id">{{ u.fullName }}</option>
+      }
+    </select>
+  </label>
+  @if (hasFilters()) {
+    <button type="button" class="btn btn--small" (click)="clear()">
+      {{ 'common.clearFilters' | t }}
+    </button>
+  }
+</div>
+
+@if (requests.error()) {
+  <div class="alert alert--danger" role="alert">
+    {{ 'app.loadFailed' | t }}
+    <button type="button" class="btn btn--small" (click)="requests.reload()">
+      {{ 'app.retry' | t }}
+    </button>
+  </div>
+} @else if (requests.isLoading() && !requests.hasValue()) {
+  <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+} @else if (requests.value(); as result) {
+  <div class="table-wrap" [attr.aria-busy]="requests.isLoading()">
+    <table data-testid="requests-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'requests.reference' | t }}</th>
+          <th scope="col">{{ 'common.customer' | t }}</th>
+          <th scope="col">{{ 'common.service' | t }}</th>
+          <th scope="col">{{ 'common.status' | t }}</th>
+          <th scope="col">{{ 'requests.preferred' | t }}</th>
+          <th scope="col">{{ 'common.technician' | t }}</th>
+          <th scope="col" class="cell-end">{{ 'requests.total' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of result.content; track r.id) {
+          <tr>
+            <td>
+              <a [routerLink]="['/app/requests', r.id]" class="row-link mono" dir="ltr">{{
+                r.reference
+              }}</a>
+            </td>
+            <td>
+              <bdi>{{ r.customerName }}</bdi>
+              <div class="list__sub">
+                <span dir="ltr">{{ phone(r.phone) }}</span> · <bdi>{{ r.district }}</bdi
+                >,
+                {{ 'city.' + r.city | t }}
+              </div>
+            </td>
+            <td>{{ name(r.service) }}</td>
+            <td><app-status-badge [status]="r.status" /></td>
+            <td>
+              @if (r.scheduledStart) {
+                {{ fmt.date(r.scheduledStart) }}
+                <div class="list__sub">{{ fmt.timeRange(r.scheduledStart, r.scheduledEnd) }}</div>
+              } @else {
+                {{ fmt.plainDate(r.preferredDate) }}
+                <div class="list__sub">{{ 'slot.' + r.preferredSlot | t }}</div>
+              }
+            </td>
+            <td>
+              @if (r.technician) {
+                <bdi>{{ r.technician.fullName }}</bdi>
+              } @else {
+                <span class="muted">{{ 'requests.unassigned' | t }}</span>
+              }
+            </td>
+            <td class="cell-end num">
+              {{ r.quoteTotal === null ? '—' : fmt.amount(r.quoteTotal) }}
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" class="empty-state">
+              {{ (hasFilters() ? 'common.noResults' : 'common.empty') | t }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <div class="table-foot">
+    <span class="muted">{{
+      'common.showing' | t: { count: fmt.number(result.totalElements) }
+    }}</span>
+    <app-pagination
+      [page]="result.page"
+      [totalPages]="result.totalPages"
+      (pageChange)="goToPage($event)"
+    />
+  </div>
+}

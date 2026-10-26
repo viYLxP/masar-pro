@@ -1,0 +1,265 @@
+<header class="page-header">
+  <div>
+    <h1>{{ 'users.title' | t }}</h1>
+    <p>{{ 'users.subtitle' | t }}</p>
+  </div>
+  <div class="page-header__actions">
+    <button
+      type="button"
+      class="btn btn--primary"
+      (click)="open('create', null)"
+      data-testid="new-user"
+    >
+      <app-icon name="plus" /> {{ 'users.new' | t }}
+    </button>
+  </div>
+</header>
+
+@if (users.error()) {
+  <div class="alert alert--danger" role="alert">
+    {{ 'app.loadFailed' | t }}
+    <button type="button" class="btn btn--small" (click)="users.reload()">
+      {{ 'app.retry' | t }}
+    </button>
+  </div>
+} @else if (users.isLoading() && !users.hasValue()) {
+  <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+} @else {
+  <div class="table-wrap">
+    <table data-testid="users-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'users.fullName' | t }}</th>
+          <th scope="col">{{ 'users.username' | t }}</th>
+          <th scope="col">{{ 'users.role' | t }}</th>
+          <th scope="col">{{ 'users.phone' | t }}</th>
+          <th scope="col">{{ 'users.skills' | t }}</th>
+          <th scope="col">{{ 'common.status' | t }}</th>
+          <th scope="col">{{ 'common.date' | t }}</th>
+          <th scope="col" class="cell-end">
+            <span class="visually-hidden">{{ 'common.actions' | t }}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (u of users.value() ?? []; track u.id) {
+          <tr>
+            <td>
+              <bdi>{{ u.fullName }}</bdi>
+              @if (isSelf(u)) {
+                <span class="badge badge--info">{{ 'users.you' | t }}</span>
+              }
+            </td>
+            <td class="mono" dir="ltr">{{ u.username }}</td>
+            <td>
+              {{ 'roles.' + u.role | t }}
+              @if (u.city) {
+                <div class="list__sub">{{ 'city.' + u.city | t }}</div>
+              }
+            </td>
+            <td dir="ltr" class="cell-ltr">{{ u.phone ? phone(u.phone) : '—' }}</td>
+            <td class="wrap">
+              @for (skill of u.skills; track skill.id) {
+                <span class="badge badge--muted">{{ skillName(skill) }}</span>
+              } @empty {
+                <span class="muted">—</span>
+              }
+            </td>
+            <td>
+              <span class="badge" [class.badge--DONE]="u.active">{{
+                (u.active ? 'users.active' : 'users.inactive') | t
+              }}</span>
+            </td>
+            <td>{{ fmt.date(u.createdAt) }}</td>
+            <td>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  (click)="open('edit', u)"
+                  [attr.aria-label]="('users.edit' | t) + ' ' + u.username"
+                >
+                  <app-icon name="edit" />
+                </button>
+                <button type="button" class="btn btn--small" (click)="open('password', u)">
+                  {{ 'users.resetPassword' | t }}
+                </button>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8" class="empty-state">{{ 'common.empty' | t }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+<dialog #dialog class="dialog" aria-labelledby="user-dialog-title">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <h2 id="user-dialog-title">
+      {{
+        (mode() === 'create'
+          ? 'users.new'
+          : mode() === 'edit'
+            ? 'users.edit'
+            : 'users.resetPassword'
+        ) | t
+      }}
+    </h2>
+    @if (target(); as u) {
+      <p class="muted">
+        <bdi>{{ u.fullName }}</bdi> · <span class="mono" dir="ltr">{{ u.username }}</span>
+      </p>
+    }
+    @if (errorText()) {
+      <div class="alert alert--danger" role="alert">{{ errorText() }}</div>
+    }
+
+    <div class="form-grid">
+      @if (mode() === 'create') {
+        <div class="field">
+          <label for="u-username">{{ 'users.username' | t }}</label>
+          <input
+            id="u-username"
+            formControlName="username"
+            dir="ltr"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-describedby="u-username-err"
+          />
+          <app-field-error
+            [control]="form.controls.username"
+            [server]="serverFields()['username']"
+            patternKey="validation.usernameFormat"
+            id="u-username-err"
+          />
+        </div>
+      }
+      @if (mode() !== 'password') {
+        <div class="field">
+          <label for="u-fullname">{{ 'users.fullName' | t }}</label>
+          <input
+            id="u-fullname"
+            formControlName="fullName"
+            autocomplete="off"
+            aria-describedby="u-fullname-err"
+          />
+          <app-field-error
+            [control]="form.controls.fullName"
+            [server]="serverFields()['fullName']"
+            id="u-fullname-err"
+          />
+        </div>
+        <div class="field">
+          <label for="u-role">{{ 'users.role' | t }}</label>
+          <select id="u-role" formControlName="role" aria-describedby="u-role-hint">
+            @for (r of roles; track r) {
+              <option [value]="r">{{ 'roles.' + r | t }}</option>
+            }
+          </select>
+          <p class="hint" id="u-role-hint">
+            {{ (editingSelf() ? 'users.selfHint' : 'users.roleHelp') | t }}
+          </p>
+        </div>
+        <div class="field">
+          <label for="u-phone"
+            >{{ 'users.phone' | t }} <small>({{ 'common.optional' | t }})</small></label
+          >
+          <input
+            id="u-phone"
+            type="tel"
+            formControlName="phone"
+            dir="ltr"
+            maxlength="20"
+            placeholder="05XXXXXXXX"
+            autocomplete="off"
+            aria-describedby="u-phone-err"
+          />
+          <app-field-error
+            [control]="form.controls.phone"
+            [server]="serverFields()['phone']"
+            patternKey="validation.Phone"
+            id="u-phone-err"
+          />
+        </div>
+        @if (isTechnician()) {
+          <div class="field">
+            <label for="u-city">{{ 'users.city' | t }}</label>
+            <select id="u-city" formControlName="city" aria-describedby="u-city-err">
+              <option [ngValue]="null" disabled>{{ 'common.choose' | t }}</option>
+              @for (c of cities; track c) {
+                <option [ngValue]="c">{{ 'city.' + c | t }}</option>
+              }
+            </select>
+            <app-field-error
+              [control]="form.controls.city"
+              [server]="serverFields()['city']"
+              id="u-city-err"
+            />
+          </div>
+          <fieldset class="field form-grid--full" aria-describedby="u-skills-hint u-skills-err">
+            <legend class="field__label">{{ 'users.skills' | t }}</legend>
+            <p class="hint" id="u-skills-hint">{{ 'users.skillsHint' | t }}</p>
+            <div class="check-grid">
+              @for (s of services.value() ?? []; track s.id) {
+                <label class="checkbox">
+                  <input
+                    type="checkbox"
+                    [checked]="skillIds().has(s.id)"
+                    (change)="toggleSkill(s.id, $any($event.target).checked)"
+                  />
+                  {{ skillName(s) }}
+                </label>
+              }
+            </div>
+            <div id="u-skills-err">
+              @if ((skillsTouched() && skillsMissing()) || serverFields()['skillIds']) {
+                <p class="field__error" role="alert">
+                  {{ 'validation.' + (serverFields()['skillIds'] || 'NotEmpty') | t }}
+                </p>
+              }
+            </div>
+          </fieldset>
+        }
+      }
+      @if (mode() !== 'edit') {
+        <div class="field">
+          <label for="u-password">{{
+            (mode() === 'create' ? 'users.password' : 'users.newPassword') | t
+          }}</label>
+          <!-- autocomplete="new-password" stops the browser from filling the admin's own saved password here. -->
+          <!-- autocomplete="new-password" يمنع المتصفح من تعبئة كلمة مرور المدير المحفوظة هنا. -->
+          <input
+            id="u-password"
+            type="password"
+            formControlName="password"
+            dir="ltr"
+            autocomplete="new-password"
+            aria-describedby="u-password-hint u-password-err"
+          />
+          <p class="hint" id="u-password-hint">{{ 'users.passwordHint' | t }}</p>
+          <app-field-error
+            [control]="form.controls.password"
+            [server]="serverFields()['password']"
+            id="u-password-err"
+          />
+        </div>
+      }
+      @if (mode() === 'edit') {
+        <label class="checkbox form-grid--full">
+          <input type="checkbox" formControlName="active" /> {{ 'users.activeLabel' | t }}
+        </label>
+      }
+    </div>
+    <div class="dialog__actions">
+      <button type="button" class="btn" (click)="close()">{{ 'common.cancel' | t }}</button>
+      <button type="submit" class="btn btn--primary" [disabled]="saving()" data-testid="user-save">
+        {{ (saving() ? 'common.saving' : 'common.save') | t }}
+      </button>
+    </div>
+  </form>
+</dialog>

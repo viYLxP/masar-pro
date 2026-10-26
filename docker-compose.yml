@@ -1,0 +1,51 @@
+# Full stack: PostgreSQL + Spring Boot API + Angular (nginx). Run: docker compose up --build
+# النظام كامل: PostgreSQL + Spring Boot API + Angular (nginx). التشغيل: docker compose up --build
+# Values come from .env (copy .env.example); the defaults below are for local demos only.
+# القيم تُقرأ من .env (انسخ .env.example)؛ والقيم الافتراضية تحت للتجربة المحلية فقط.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: masar
+      POSTGRES_USER: ${DB_USERNAME:-masar}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-masar}
+    # Published on 127.0.0.1 only, so a DB tool (DBeaver, pgAdmin) on this machine can open it but the network cannot.
+    # منشورة على 127.0.0.1 فقط، عشان أداة قاعدة بيانات (DBeaver أو pgAdmin) على نفس الجهاز تفتحها والشبكة ما توصلها.
+    ports:
+      - '127.0.0.1:${DB_PORT:-5443}:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d masar']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/masar
+      DB_USERNAME: ${DB_USERNAME:-masar}
+      DB_PASSWORD: ${DB_PASSWORD:-masar}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (at least 32 characters)}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@12345}
+      STAFF_PASSWORD: ${STAFF_PASSWORD:-Staff@12345}
+      # Public form limits per visitor IP, per 10 minutes. / حدود النماذج العامة لكل IP زائر، كل 10 دقائق.
+      RATE_LIMIT_BOOKINGS: ${RATE_LIMIT_BOOKINGS:-5}
+      RATE_LIMIT_LOOKUPS: ${RATE_LIMIT_LOOKUPS:-30}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8083}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - '${APP_PORT:-8083}:80'
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db-data:

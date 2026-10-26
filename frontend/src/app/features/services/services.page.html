@@ -1,0 +1,207 @@
+<header class="page-header">
+  <div>
+    <h1>{{ 'services.title' | t }}</h1>
+    <p>{{ 'services.subtitle' | t }}</p>
+  </div>
+  <div class="page-header__actions">
+    <button type="button" class="btn btn--primary" (click)="open(null)" data-testid="new-service">
+      <app-icon name="plus" /> {{ 'services.new' | t }}
+    </button>
+  </div>
+</header>
+
+@if (services.error()) {
+  <div class="alert alert--danger" role="alert">
+    {{ 'app.loadFailed' | t }}
+    <button type="button" class="btn btn--small" (click)="services.reload()">
+      {{ 'app.retry' | t }}
+    </button>
+  </div>
+} @else if (services.isLoading() && !services.hasValue()) {
+  <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+} @else {
+  <div class="table-wrap">
+    <table data-testid="services-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'common.name' | t }}</th>
+          <th scope="col">{{ 'services.code' | t }}</th>
+          <th scope="col" class="cell-end">{{ 'services.basePrice' | t }}</th>
+          <th scope="col">{{ 'services.duration' | t }}</th>
+          <th scope="col">{{ 'common.status' | t }}</th>
+          <th scope="col" class="cell-end">
+            <span class="visually-hidden">{{ 'common.actions' | t }}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (s of services.value() ?? []; track s.id) {
+          <tr>
+            <td>
+              <span class="service-name">
+                <span class="service-name__icon"><app-icon [name]="icon(s.code)" /></span>
+                <span>
+                  {{ i18n.lang() === 'ar' ? s.nameAr : s.nameEn }}
+                  <span class="list__sub">{{ i18n.lang() === 'ar' ? s.nameEn : s.nameAr }}</span>
+                </span>
+              </span>
+            </td>
+            <td class="mono" dir="ltr">{{ s.code }}</td>
+            <td class="cell-end num">{{ fmt.amount(s.basePrice) }}</td>
+            <td>{{ fmt.duration(s.durationMinutes) }}</td>
+            <td>
+              <span
+                class="badge"
+                [class.badge--success]="s.active"
+                [class.badge--muted]="!s.active"
+                >{{ (s.active ? 'services.activeBadge' : 'services.inactiveBadge') | t }}</span
+              >
+            </td>
+            <td>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  (click)="open(s)"
+                  [attr.aria-label]="('services.edit' | t) + ' ' + s.code"
+                >
+                  <app-icon name="edit" />
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn icon-btn--danger"
+                  (click)="remove(s)"
+                  [attr.aria-label]="('common.delete' | t) + ' ' + s.code"
+                >
+                  <app-icon name="trash" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="6" class="empty-state">{{ 'common.empty' | t }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+<dialog #dialog class="dialog" aria-labelledby="service-dialog-title">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <h2 id="service-dialog-title">{{ (editing() ? 'services.edit' : 'services.new') | t }}</h2>
+    @if (errorText()) {
+      <div class="alert alert--danger" role="alert">{{ errorText() }}</div>
+    }
+    <div class="form-grid">
+      <div class="field">
+        <label for="s-code">{{ 'services.code' | t }}</label>
+        <input
+          id="s-code"
+          formControlName="code"
+          dir="ltr"
+          maxlength="30"
+          autocapitalize="characters"
+          spellcheck="false"
+          aria-describedby="s-code-hint s-code-err"
+        />
+        <p class="hint" id="s-code-hint">{{ 'services.codeHint' | t }}</p>
+        <app-field-error
+          [control]="form.controls.code"
+          [server]="serverFields()['code']"
+          patternKey="validation.codeFormat"
+          id="s-code-err"
+        />
+      </div>
+      <div class="field">
+        <label for="s-order">{{ 'services.sortOrder' | t }}</label>
+        <input id="s-order" type="number" formControlName="sortOrder" min="0" max="999" dir="ltr" />
+        <app-field-error
+          [control]="form.controls.sortOrder"
+          [server]="serverFields()['sortOrder']"
+        />
+      </div>
+      <div class="field">
+        <label for="s-name-ar">{{ 'services.nameAr' | t }}</label>
+        <input id="s-name-ar" formControlName="nameAr" dir="rtl" lang="ar" maxlength="100" />
+        <app-field-error [control]="form.controls.nameAr" [server]="serverFields()['nameAr']" />
+      </div>
+      <div class="field">
+        <label for="s-name-en">{{ 'services.nameEn' | t }}</label>
+        <input id="s-name-en" formControlName="nameEn" dir="ltr" lang="en" maxlength="100" />
+        <app-field-error [control]="form.controls.nameEn" [server]="serverFields()['nameEn']" />
+      </div>
+      <div class="field">
+        <label for="s-desc-ar">{{ 'services.descriptionAr' | t }}</label>
+        <textarea
+          id="s-desc-ar"
+          formControlName="descriptionAr"
+          dir="rtl"
+          lang="ar"
+          rows="2"
+          maxlength="500"
+        ></textarea>
+      </div>
+      <div class="field">
+        <label for="s-desc-en">{{ 'services.descriptionEn' | t }}</label>
+        <textarea
+          id="s-desc-en"
+          formControlName="descriptionEn"
+          dir="ltr"
+          lang="en"
+          rows="2"
+          maxlength="500"
+        ></textarea>
+      </div>
+      <div class="field">
+        <label for="s-price">{{ 'services.basePrice' | t }}</label>
+        <input
+          id="s-price"
+          type="number"
+          inputmode="decimal"
+          formControlName="basePrice"
+          min="0"
+          step="0.01"
+          dir="ltr"
+        />
+        <app-field-error
+          [control]="form.controls.basePrice"
+          [server]="serverFields()['basePrice']"
+        />
+      </div>
+      <div class="field">
+        <label for="s-duration">{{ 'services.duration' | t }}</label>
+        <input
+          id="s-duration"
+          type="number"
+          formControlName="durationMinutes"
+          min="30"
+          max="480"
+          step="30"
+          dir="ltr"
+          aria-describedby="s-duration-hint"
+        />
+        <p class="hint" id="s-duration-hint">{{ 'services.durationHint' | t }}</p>
+        <app-field-error
+          [control]="form.controls.durationMinutes"
+          [server]="serverFields()['durationMinutes']"
+        />
+      </div>
+      <label class="checkbox form-grid--full">
+        <input type="checkbox" formControlName="active" /> {{ 'services.active' | t }}
+      </label>
+    </div>
+    <div class="dialog__actions">
+      <button type="button" class="btn" (click)="close()">{{ 'common.cancel' | t }}</button>
+      <button
+        type="submit"
+        class="btn btn--primary"
+        [disabled]="saving()"
+        data-testid="service-save"
+      >
+        {{ (saving() ? 'common.saving' : 'common.save') | t }}
+      </button>
+    </div>
+  </form>
+</dialog>

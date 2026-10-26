@@ -220,8 +220,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         retime(hind, ago(9, 10, 20), ago(9, 14, 5), ago(8, 11, 30), ago(8, 12, 0), ago(3, 9, 5), ago(3, 10, 40));
         retime(sultan, ago(12, 18, 0), ago(11, 9, 30), ago(11, 20, 15), ago(10, 9, 0), ago(6, 13, 10), ago(6, 15, 0));
         retime(faris, ago(41, 8, 45), ago(40, 10, 0), ago(39, 16, 30), ago(39, 17, 0), ago(35, 10, 0), ago(35, 11, 5));
-        retime(faisal, ago(2, 10, 15), ago(2, 13, 0), ago(1, 9, 40), ago(1, 10, 5),
-                time.now().minus(Duration.ofMinutes(35)));
+        retime(faisal, ago(2, 10, 15), ago(2, 13, 0), ago(1, 9, 40), ago(1, 10, 5), inProgressStart());
         retime(laila, ago(5, 11, 0), ago(4, 12, 30), ago(3, 18, 20));
         retime(turki, ago(4, 15, 0), ago(2, 11, 45));
         alignJobTimes();
@@ -288,6 +287,24 @@ public class DemoDataSeeder implements ApplicationRunner {
     private Long version(ServiceRequest r) {
         requestRepository.flush();
         return jdbc.queryForObject("select version from service_request where id = ?", Long.class, r.getId());
+    }
+
+    /**
+     * When the "in progress" demo job started: 35 minutes ago during working hours. Outside them (the app was
+     * started at night) it uses the last working slot instead, so the demo never shows a job at 2 a.m.
+     * متى بدأ شغل "قيد التنفيذ" التجريبي: قبل 35 دقيقة وقت الدوام. وبرا الدوام (التطبيق اشتغل بالليل)
+     * ياخذ آخر فترة دوام بدلها، حتى العرض ما يبين شغل الساعة 2 الفجر.
+     */
+    private Instant inProgressStart() {
+        Instant candidate = time.now().minus(Duration.ofMinutes(35));
+        LocalTime clock = time.timeOf(candidate);
+        if (clock.isBefore(LocalTime.of(8, 0))) {
+            return ago(1, 18, 0);
+        }
+        if (clock.isAfter(LocalTime.of(18, 30))) {
+            return ago(0, 18, 0);
+        }
+        return candidate;
     }
 
     private Instant ago(int days, int hour, int minute) {

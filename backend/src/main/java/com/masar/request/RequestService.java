@@ -224,7 +224,14 @@ public class RequestService {
         return me;
     }
 
+    /**
+     * Builds the response after a change. It flushes first: the version column is only bumped when Hibernate
+     * writes the row, and the client must receive the new version or its next action fails as a conflict.
+     * يبني الرد بعد أي تعديل. نسوي flush أول: عمود الإصدار ما يزيد إلا لما Hibernate يكتب الصف،
+     * والواجهة لازم تستلم الإصدار الجديد وإلا إجراءها الجاي يفشل كتعارض.
+     */
     RequestDetail detail(ServiceRequest request) {
+        entityManager.flush();
         return RequestDetail.from(request, events.findByRequestOrderByCreatedAtAscIdAsc(request), time.today());
     }
 

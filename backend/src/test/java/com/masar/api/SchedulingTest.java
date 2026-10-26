@@ -17,6 +17,8 @@ import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.Test;
 
+import com.jayway.jsonpath.JsonPath;
+
 import com.masar.support.IntegrationTest;
 
 /**
@@ -190,5 +192,32 @@ class SchedulingTest extends IntegrationTest {
         mvc.perform(auth(get("/api/jobs/mine"), fahad)).andExpect(jsonPath("$[0].status").value("COMPLETED"));
         assertThat(jdbc.queryForList("select actor from request_event where request_id = ? order by id",
                 String.class, id)).endsWith("fahad", "fahad");
+    }
+
+    /**
+     * The browser chains actions with the version from the previous response (it never reads the database),
+     * so every response must already carry the new version. Before the fix it was one behind and the second
+     * action failed with CONCURRENT_UPDATE.
+     * المتصفح يربط الإجراءات بالإصدار اللي جا في الرد السابق (ما يقرأ قاعدة البيانات)، فلازم كل رد يحمل
+     * الإصدار الجديد. قبل الإصلاح كان متأخر بواحد والإجراء الثاني يفشل بـ CONCURRENT_UPDATE.
+     */
+    @Test
+    void eachResponseCarriesTheVersionForTheNextAction() throws Exception {
+        String office = dispatcherToken();
+        long id = acceptedAcRequest(office, "0557654321");
+        String scheduled = schedule(id, office, userId("fahad"), tomorrow(), "11:00")
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        int version = JsonPath.read(scheduled, "$.version");
+        assertThat((long) version).isEqualTo(versionOf(id));
+
+        String fahad = technicianToken("fahad");
+        String started = mvc.perform(auth(post("/api/requests/" + id + "/start"), fahad)
+                        .content("{\"version\":%d}".formatted(version)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        version = JsonPath.read(started, "$.version");
+        mvc.perform(auth(post("/api/requests/" + id + "/complete"), fahad)
+                        .content("{\"version\":%d}".formatted(version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
 }

@@ -1,0 +1,140 @@
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate data-testid="quote-editor">
+  @if (errorText(); as message) {
+    <div class="alert alert--danger" role="alert">{{ message }}</div>
+  }
+  <div class="quote-lines" formArrayName="lines">
+    <div class="quote-line quote-line--head" aria-hidden="true">
+      <span>{{ 'quote.description' | t }}</span>
+      <span>{{ 'quote.quantity' | t }}</span>
+      <span>{{ 'quote.unitPrice' | t }}</span>
+      <span>{{ 'quote.lineTotal' | t }}</span>
+      <span></span>
+    </div>
+    @for (line of form.controls.lines.controls; track line; let i = $index) {
+      <div class="quote-line" [formGroupName]="i">
+        <div class="field">
+          <label class="visually-hidden" [for]="'q-desc-' + i"
+            >{{ 'quote.description' | t }} {{ i + 1 }}</label
+          >
+          <input
+            [id]="'q-desc-' + i"
+            formControlName="description"
+            maxlength="200"
+            [placeholder]="'quote.description' | t"
+            dir="auto"
+          />
+          <app-field-error [control]="line.controls.description" />
+        </div>
+        <div class="field">
+          <label class="visually-hidden" [for]="'q-qty-' + i"
+            >{{ 'quote.quantity' | t }} {{ i + 1 }}</label
+          >
+          <input
+            [id]="'q-qty-' + i"
+            type="number"
+            inputmode="numeric"
+            formControlName="quantity"
+            min="1"
+            max="999"
+            step="1"
+            dir="ltr"
+          />
+          <app-field-error [control]="line.controls.quantity" />
+        </div>
+        <div class="field">
+          <label class="visually-hidden" [for]="'q-price-' + i"
+            >{{ 'quote.unitPrice' | t }} {{ i + 1 }}</label
+          >
+          <input
+            [id]="'q-price-' + i"
+            type="number"
+            inputmode="decimal"
+            formControlName="unitPrice"
+            min="0"
+            step="0.01"
+            dir="ltr"
+          />
+          <app-field-error [control]="line.controls.unitPrice" />
+        </div>
+        <span class="quote-line__total num">{{
+          fmt.amount((line.controls.quantity.value || 0) * (line.controls.unitPrice.value || 0))
+        }}</span>
+        <button
+          type="button"
+          class="icon-btn icon-btn--danger"
+          (click)="removeLine(i)"
+          [disabled]="lines.length === 1"
+          [attr.aria-label]="'quote.removeLine' | t: { n: i + 1 }"
+        >
+          <app-icon name="trash" />
+        </button>
+      </div>
+    }
+  </div>
+  <button
+    type="button"
+    class="btn btn--small"
+    (click)="addLine()"
+    [disabled]="lines.length >= maxLines"
+    data-testid="quote-add-line"
+  >
+    <app-icon name="plus" /> {{ 'quote.addLine' | t }}
+  </button>
+  @if (lines.length >= maxLines) {
+    <p class="hint">{{ 'quote.maxLines' | t }}</p>
+  }
+
+  <div class="form-grid section-gap">
+    <div class="field">
+      <label for="q-valid">{{ 'quote.validUntil' | t }}</label>
+      <input
+        id="q-valid"
+        type="date"
+        formControlName="validUntil"
+        [min]="today"
+        [max]="maxDate"
+        aria-describedby="q-valid-err"
+      />
+      <app-field-error
+        [control]="form.controls.validUntil"
+        [server]="serverFields()['validUntil']"
+        id="q-valid-err"
+      />
+    </div>
+    <div class="field form-grid--full">
+      <label for="q-notes"
+        >{{ 'quote.notes' | t }} <small>({{ 'common.optional' | t }})</small></label
+      >
+      <textarea
+        id="q-notes"
+        formControlName="notes"
+        rows="2"
+        maxlength="1000"
+        dir="auto"
+      ></textarea>
+    </div>
+  </div>
+
+  <dl class="totals" aria-live="polite">
+    <div>
+      <dt>{{ 'quote.subtotal' | t }}</dt>
+      <dd>{{ fmt.money(totals().subtotal) }}</dd>
+    </div>
+    <div>
+      <dt>{{ 'quote.vat' | t }}</dt>
+      <dd>{{ fmt.money(totals().vat) }}</dd>
+    </div>
+    <div class="totals__grand">
+      <dt>{{ 'quote.total' | t }}</dt>
+      <dd data-testid="quote-editor-total">{{ fmt.money(totals().total) }}</dd>
+    </div>
+  </dl>
+  <p class="hint">{{ 'quote.estimateHint' | t }}</p>
+
+  <div class="form-actions">
+    <button type="button" class="btn" (click)="cancelled.emit()">{{ 'common.cancel' | t }}</button>
+    <button type="submit" class="btn btn--primary" [disabled]="saving()" data-testid="quote-save">
+      {{ (saving() ? 'common.saving' : 'quote.saveDraft') | t }}
+    </button>
+  </div>
+</form>

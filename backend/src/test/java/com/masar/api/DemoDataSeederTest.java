@@ -64,11 +64,22 @@ class DemoDataSeederTest extends IntegrationTest {
                 select count(*) from quote q join service_request r on r.id = q.request_id
                 where r.status = 'NEW' and q.sent_at is not null""", Long.class)).isZero();
 
+        // The seeded in-progress job lands on yesterday evening when the seed runs before 08:00 Riyadh time,
+        // so the expected "today" count is read from the data instead of being fixed.
+        // شغل "قيد التنفيذ" المزروع يصير مساء أمس لو الزرع صار قبل 8 الصبح بتوقيت الرياض،
+        // فعدد "اليوم" المتوقع ينقرأ من البيانات بدل ما يكون رقم ثابت.
+        Long todayJobs = jdbc.queryForObject("""
+                select count(*) from service_request
+                where status in ('SCHEDULED', 'IN_PROGRESS', 'COMPLETED')
+                  and (scheduled_start at time zone 'Asia/Riyadh')::date = (now() at time zone 'Asia/Riyadh')::date
+                """, Long.class);
+        assertThat(todayJobs).isBetween(0L, 1L);
+
         String token = login("noura", "Staff@12345");
         mvc.perform(auth(get("/api/dashboard"), token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.acceptanceRate").isNumber())
-                .andExpect(jsonPath("$.today.length()").value(1));
+                .andExpect(jsonPath("$.today.length()").value(todayJobs.intValue()));
         login("fahad", "Staff@12345");
     }
 }

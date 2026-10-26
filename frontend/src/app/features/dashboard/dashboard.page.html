@@ -1,0 +1,175 @@
+<header class="page-header">
+  <div>
+    <h1>{{ 'dashboard.title' | t }}</h1>
+    <p>{{ 'dashboard.subtitle' | t }}</p>
+  </div>
+  <div class="page-header__actions">
+    <a class="btn btn--primary" routerLink="/app/requests/new">{{ 'nav.newRequest' | t }}</a>
+  </div>
+</header>
+
+@if (data.error()) {
+  <div class="alert alert--danger" role="alert">
+    {{ 'app.loadFailed' | t }}
+    <button type="button" class="btn btn--small" (click)="data.reload()">
+      {{ 'app.retry' | t }}
+    </button>
+  </div>
+} @else if (data.isLoading() && !data.hasValue()) {
+  <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+} @else if (data.value(); as d) {
+  <section class="grid grid--stats" data-testid="stats">
+    <div class="card stat-card">
+      <span class="stat-card__label">{{ 'dashboard.revenue' | t }}</span>
+      <strong class="stat-card__value" data-testid="stat-revenue">{{
+        fmt.money(d.revenueThisMonth)
+      }}</strong>
+      <span class="stat-card__sub">{{
+        'dashboard.completed' | t: { count: fmt.number(d.completedThisMonth) }
+      }}</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat-card__label">{{ 'dashboard.acceptance' | t }}</span>
+      <strong class="stat-card__value">{{
+        d.acceptanceRate === null ? '—' : fmt.percent(d.acceptanceRate)
+      }}</strong>
+      <span class="stat-card__sub">{{
+        (d.acceptanceRate === null ? 'dashboard.acceptanceNone' : 'dashboard.acceptanceHint') | t
+      }}</span>
+    </div>
+    <a class="card stat-card stat-card--link" routerLink="/app/requests">
+      <span class="stat-card__label">{{ 'dashboard.open' | t }}</span>
+      <strong class="stat-card__value">{{ fmt.number(openCount()) }}</strong>
+      <span class="stat-card__sub">{{ 'dashboard.openHint' | t }}</span>
+    </a>
+    <a
+      class="card stat-card stat-card--link"
+      [class.stat-card--warn]="d.statusCounts.ACCEPTED > 0"
+      routerLink="/app/requests"
+      [queryParams]="{ status: 'ACCEPTED' }"
+    >
+      <span class="stat-card__label">{{ 'dashboard.toSchedule' | t }}</span>
+      <strong class="stat-card__value">{{ fmt.number(d.statusCounts.ACCEPTED) }}</strong>
+      <span class="stat-card__sub">{{ 'dashboard.toScheduleHint' | t }}</span>
+    </a>
+  </section>
+
+  <div class="grid grid--2 section-gap">
+    <section class="card" aria-labelledby="today-title">
+      <div class="card__header">
+        <h2 id="today-title">{{ 'dashboard.today' | t }}</h2>
+        <a routerLink="/app/schedule">{{ 'nav.schedule' | t }}</a>
+      </div>
+      <ul class="list" data-testid="today-jobs">
+        @for (job of d.today; track job.id) {
+          <li>
+            <span class="list__time">{{ fmt.timeRange(job.start, job.end) }}</span>
+            <div class="list__main">
+              <a [routerLink]="['/app/requests', job.id]" class="row-link">
+                <bdi>{{ job.customerName }}</bdi>
+              </a>
+              <span class="list__sub"
+                >{{ name(job.service) }} · <bdi>{{ job.district }}</bdi></span
+              >
+            </div>
+            <app-status-badge [status]="job.status" />
+          </li>
+        } @empty {
+          <li class="empty-state">{{ 'dashboard.noToday' | t }}</li>
+        }
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="status-title">
+      <h2 id="status-title">{{ 'dashboard.byStatus' | t }}</h2>
+      <ul class="hbars">
+        @for (bar of statusBars(); track bar.status) {
+          <li class="hbar">
+            <a
+              class="hbar__label"
+              routerLink="/app/requests"
+              [queryParams]="{ status: bar.status }"
+              >{{ 'status.' + bar.status | t }}</a
+            >
+            <span class="hbar__track" aria-hidden="true">
+              <span class="hbar__fill" [style.width.%]="bar.width"></span>
+            </span>
+            <span class="hbar__value">{{ fmt.number(bar.count) }}</span>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="waiting-title">
+      <div class="card__header">
+        <h2 id="waiting-title">{{ 'dashboard.waiting' | t }}</h2>
+        <a routerLink="/app/requests" [queryParams]="{ status: 'NEW' }">{{
+          'common.viewAll' | t
+        }}</a>
+      </div>
+      <ul class="list" data-testid="waiting-list">
+        @for (r of d.waitingForQuote; track r.id) {
+          <li>
+            <div class="list__main">
+              <a [routerLink]="['/app/requests', r.id]" class="row-link">
+                <bdi>{{ r.customerName }}</bdi>
+              </a>
+              <span class="list__sub"
+                >{{ name(r.service) }} · <bdi>{{ r.district }}</bdi></span
+              >
+            </div>
+            <span class="muted">{{
+              'dashboard.waitingSince' | t: { date: fmt.dateTime(r.createdAt) }
+            }}</span>
+          </li>
+        } @empty {
+          <li class="empty-state">{{ 'dashboard.noWaiting' | t }}</li>
+        }
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="expiring-title">
+      <div class="card__header">
+        <h2 id="expiring-title">{{ 'dashboard.expiring' | t }}</h2>
+        <span class="muted">{{ 'dashboard.expiringHint' | t }}</span>
+      </div>
+      <ul class="list" data-testid="expiring-list">
+        @for (r of d.expiringQuotes; track r.id) {
+          <li>
+            <div class="list__main">
+              <a [routerLink]="['/app/requests', r.id]" class="row-link">
+                <bdi>{{ r.customerName }}</bdi>
+              </a>
+              <span class="list__sub">{{ name(r.service) }} · {{ fmt.money(r.total) }}</span>
+            </div>
+            <span class="badge badge--warn">{{
+              'dashboard.expiresOn' | t: { date: fmt.plainDate(r.validUntil) }
+            }}</span>
+          </li>
+        } @empty {
+          <li class="empty-state">{{ 'dashboard.noExpiring' | t }}</li>
+        }
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="top-title">
+      <h2 id="top-title">{{ 'dashboard.topServices' | t }}</h2>
+      <ul class="hbars">
+        @for (t of d.topServices; track t.service.id) {
+          <li class="hbar">
+            <span class="hbar__label">{{ name(t.service) }}</span>
+            <span class="hbar__track" aria-hidden="true">
+              <span
+                class="hbar__fill hbar__fill--accent"
+                [style.width.%]="(t.count / topMax()) * 100"
+              ></span>
+            </span>
+            <span class="hbar__value">{{ fmt.number(t.count) }}</span>
+          </li>
+        } @empty {
+          <li class="empty-state">{{ 'dashboard.noTop' | t }}</li>
+        }
+      </ul>
+    </section>
+  </div>
+}

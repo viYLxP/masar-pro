@@ -1,0 +1,260 @@
+<form
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  novalidate
+  class="booking-form"
+  data-testid="booking-form"
+>
+  @if (errorText(); as message) {
+    <div class="alert alert--danger" role="alert" data-testid="booking-error">{{ message }}</div>
+  }
+
+  <fieldset class="form-section">
+    <legend>{{ 'booking.sectionService' | t }}</legend>
+    @if (services.error()) {
+      <div class="alert alert--danger" role="alert">
+        {{ 'app.loadFailed' | t }}
+        <button type="button" class="btn btn--small" (click)="services.reload()">
+          {{ 'app.retry' | t }}
+        </button>
+      </div>
+    } @else if (services.isLoading() && !services.hasValue()) {
+      <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+    } @else {
+      <!-- Radio cards: one tap on mobile, and the group is announced as one question. -->
+      <!-- بطاقات اختيار: ضغطة وحدة في الجوال، والمجموعة تنقرأ كسؤال واحد. -->
+      <div
+        class="choice-grid"
+        role="radiogroup"
+        [attr.aria-label]="'booking.service' | t"
+        aria-describedby="b-service-err"
+      >
+        @for (s of services.value() ?? []; track s.id) {
+          <label class="choice" [class.choice--on]="selected()?.id === s.id">
+            <input type="radio" formControlName="serviceTypeId" [value]="s.id" />
+            <span class="choice__title">{{ serviceName(s) }}</span>
+            <small class="muted">{{ 'site.from' | t: { price: fmt.money(s.basePrice) } }}</small>
+          </label>
+        }
+      </div>
+      <app-field-error
+        [control]="form.controls.serviceTypeId"
+        [server]="serverFields()['serviceTypeId']"
+        id="b-service-err"
+      />
+      @if (selected(); as s) {
+        <p class="hint">
+          {{
+            'booking.basePrice'
+              | t: { price: fmt.money(s.basePrice), duration: fmt.duration(s.durationMinutes) }
+          }}
+        </p>
+      }
+    }
+
+    <div class="field">
+      <label for="b-details"
+        >{{ 'booking.details' | t }} <small>({{ 'common.optional' | t }})</small></label
+      >
+      <textarea
+        id="b-details"
+        formControlName="details"
+        rows="3"
+        maxlength="2000"
+        [placeholder]="'booking.detailsPlaceholder' | t"
+        dir="auto"
+      ></textarea>
+      <app-field-error [control]="form.controls.details" [server]="serverFields()['details']" />
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>{{ 'booking.sectionPlace' | t }}</legend>
+    <div class="form-grid">
+      <div class="field">
+        <label for="b-city">{{ 'booking.city' | t }}</label>
+        <select id="b-city" formControlName="city">
+          @for (c of cities; track c) {
+            <option [value]="c">{{ 'city.' + c | t }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="b-district">{{ 'booking.district' | t }}</label>
+        <input
+          id="b-district"
+          formControlName="district"
+          maxlength="100"
+          autocomplete="address-level3"
+          [placeholder]="'booking.districtPlaceholder' | t"
+          aria-describedby="b-district-err"
+        />
+        <app-field-error
+          [control]="form.controls.district"
+          [server]="serverFields()['district']"
+          id="b-district-err"
+        />
+      </div>
+      <div class="field">
+        <label for="b-property">{{ 'booking.propertyType' | t }}</label>
+        <select id="b-property" formControlName="propertyType">
+          @for (p of propertyTypes; track p) {
+            <option [value]="p">{{ 'property.' + p | t }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="b-address"
+          >{{ 'booking.address' | t }} <small>({{ 'common.optional' | t }})</small></label
+        >
+        <input
+          id="b-address"
+          formControlName="address"
+          maxlength="300"
+          autocomplete="street-address"
+          [placeholder]="'booking.addressPlaceholder' | t"
+        />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>{{ 'booking.sectionTime' | t }}</legend>
+    <div class="form-grid">
+      <div class="field">
+        <label for="b-date">{{ 'booking.preferredDate' | t }}</label>
+        <input
+          id="b-date"
+          type="date"
+          formControlName="preferredDate"
+          [min]="today"
+          [max]="maxDate"
+          aria-describedby="b-date-hint b-date-err"
+        />
+        <p class="hint" id="b-date-hint">{{ 'booking.preferredDateHint' | t }}</p>
+        <app-field-error
+          [control]="form.controls.preferredDate"
+          [server]="serverFields()['preferredDate']"
+          id="b-date-err"
+        />
+      </div>
+      <div class="field">
+        <span class="field__label" id="b-slot-label">{{ 'booking.preferredSlot' | t }}</span>
+        <div
+          class="segmented"
+          role="radiogroup"
+          aria-labelledby="b-slot-label"
+          aria-describedby="b-slot-err"
+        >
+          @for (slot of slots; track slot) {
+            <label
+              class="segmented__item"
+              [class.segmented__item--on]="form.controls.preferredSlot.value === slot"
+              [class.segmented__item--off]="passedSlots().has(slot)"
+            >
+              <input
+                type="radio"
+                formControlName="preferredSlot"
+                [value]="slot"
+                [attr.disabled]="passedSlots().has(slot) ? '' : null"
+              />
+              <span>{{ 'slot.' + slot | t }}</span>
+              @if (passedSlots().has(slot)) {
+                <small>{{ 'booking.slotPassed' | t }}</small>
+              }
+            </label>
+          }
+        </div>
+        <app-field-error
+          [control]="form.controls.preferredSlot"
+          [server]="serverFields()['preferredSlot']"
+          id="b-slot-err"
+        />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>
+      {{ (mode() === 'office' ? 'booking.sectionContactOffice' : 'booking.sectionContact') | t }}
+    </legend>
+    <div class="form-grid">
+      <div class="field">
+        <label for="b-name">{{ 'booking.name' | t }}</label>
+        <input
+          id="b-name"
+          formControlName="customerName"
+          maxlength="120"
+          autocomplete="name"
+          aria-describedby="b-name-err"
+        />
+        <app-field-error
+          [control]="form.controls.customerName"
+          [server]="serverFields()['customerName']"
+          id="b-name-err"
+        />
+      </div>
+      <div class="field">
+        <label for="b-phone">{{ 'booking.phone' | t }}</label>
+        <!-- type="tel" opens the number pad on phones; dir="ltr" keeps the digits in order in Arabic. -->
+        <!-- type="tel" يفتح لوحة الأرقام في الجوال؛ وdir="ltr" يحافظ على ترتيب الأرقام في العربي. -->
+        <input
+          id="b-phone"
+          type="tel"
+          inputmode="tel"
+          formControlName="phone"
+          dir="ltr"
+          maxlength="20"
+          autocomplete="tel"
+          placeholder="05XXXXXXXX"
+          aria-describedby="b-phone-hint b-phone-err"
+        />
+        <p class="hint" id="b-phone-hint">{{ 'booking.phoneHint' | t }}</p>
+        <app-field-error
+          [control]="form.controls.phone"
+          [server]="serverFields()['phone']"
+          id="b-phone-err"
+        />
+      </div>
+      <div class="field">
+        <label for="b-email"
+          >{{ 'booking.email' | t }} <small>({{ 'common.optional' | t }})</small></label
+        >
+        <input
+          id="b-email"
+          type="email"
+          formControlName="email"
+          dir="ltr"
+          maxlength="150"
+          autocomplete="email"
+          aria-describedby="b-email-err"
+        />
+        <app-field-error
+          [control]="form.controls.email"
+          [server]="serverFields()['email']"
+          id="b-email-err"
+        />
+      </div>
+    </div>
+    @if (mode() === 'public') {
+      <!-- Honeypot: off-screen and skipped by keyboard and screen readers, so only bots fill it. -->
+      <!-- المصيدة: خارج الشاشة ويتجاوزها الكيبورد وقارئ الشاشة، فما يعبّيها إلا البوتات. -->
+      <div class="honeypot" aria-hidden="true">
+        <label for="b-website">Website</label>
+        <input id="b-website" formControlName="website" tabindex="-1" autocomplete="off" />
+      </div>
+      <p class="hint">{{ 'booking.privacy' | t }}</p>
+    }
+  </fieldset>
+
+  <div class="form-actions">
+    <button
+      type="submit"
+      class="btn btn--primary btn--large"
+      [disabled]="submitting()"
+      data-testid="booking-submit"
+    >
+      {{ (submitting() ? 'booking.submitting' : 'booking.submit') | t }}
+    </button>
+  </div>
+</form>

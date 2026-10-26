@@ -1,0 +1,346 @@
+@if (auth.isOffice()) {
+  <a class="breadcrumb" routerLink="/app/requests">
+    <app-icon name="chevron" class="icon--back" [flip]="true" /> {{ 'nav.requests' | t }}
+  </a>
+} @else {
+  <a class="breadcrumb" routerLink="/app/jobs">
+    <app-icon name="chevron" class="icon--back" [flip]="true" /> {{ 'nav.myJobs' | t }}
+  </a>
+}
+
+@if (request.error()) {
+  <div class="alert alert--danger" role="alert">
+    {{ loadErrorText() }}
+    <button type="button" class="btn btn--small" (click)="request.reload()">
+      {{ 'app.retry' | t }}
+    </button>
+  </div>
+} @else if (request.isLoading() && !request.hasValue()) {
+  <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+} @else if (request.value(); as r) {
+  <header class="page-header">
+    <div>
+      <p class="eyebrow" dir="ltr" data-testid="detail-reference">{{ r.reference }}</p>
+      <h1>
+        <bdi>{{ r.customerName }}</bdi> · {{ serviceLabel() }}
+      </h1>
+      <p><app-status-badge [status]="r.status" data-testid="detail-status" /></p>
+    </div>
+    <div class="page-header__actions" data-testid="detail-actions">
+      @if (auth.isOffice()) {
+        @switch (r.status) {
+          @case ('NEW') {
+            @if (r.quote && !editingQuote()) {
+              <button
+                type="button"
+                class="btn btn--primary"
+                (click)="sendQuote(r)"
+                [disabled]="busy()"
+                data-testid="send-quote"
+              >
+                {{ 'quote.send' | t }}
+              </button>
+            }
+          }
+          @case ('QUOTED') {
+            <button type="button" class="btn" (click)="revise(r)" [disabled]="busy()">
+              {{ 'requests.revise' | t }}
+            </button>
+          }
+          @case ('REJECTED') {
+            <button type="button" class="btn btn--primary" (click)="revise(r)" [disabled]="busy()">
+              {{ 'requests.reopen' | t }}
+            </button>
+          }
+          @case ('ACCEPTED') {
+            <button
+              type="button"
+              class="btn btn--primary"
+              (click)="openSchedule()"
+              data-testid="open-schedule"
+            >
+              <app-icon name="calendar" /> {{ 'requests.schedule' | t }}
+            </button>
+          }
+          @case ('SCHEDULED') {
+            <button type="button" class="btn" (click)="openSchedule()" data-testid="open-schedule">
+              <app-icon name="calendar" /> {{ 'requests.reschedule' | t }}
+            </button>
+          }
+        }
+        @if (['NEW', 'QUOTED', 'ACCEPTED', 'SCHEDULED'].includes(r.status)) {
+          <button
+            type="button"
+            class="btn btn--danger"
+            (click)="cancel(r)"
+            [disabled]="busy()"
+            data-testid="cancel-request"
+          >
+            {{ 'requests.cancel' | t }}
+          </button>
+        }
+      }
+      @if (r.status === 'SCHEDULED') {
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="start(r)"
+          [disabled]="busy()"
+          data-testid="start-job"
+        >
+          <app-icon name="play" [flip]="true" /> {{ 'requests.start' | t }}
+        </button>
+      }
+    </div>
+  </header>
+
+  <div class="card">
+    <app-status-stepper [status]="r.status" [reached]="reached()" />
+  </div>
+
+  @if (r.status === 'REJECTED' && r.rejectReason) {
+    <div class="alert alert--info" dir="auto">
+      {{ 'requests.rejectReason' | t: { reason: r.rejectReason } }}
+    </div>
+  }
+  @if (r.status === 'CANCELLED' && r.cancelReason) {
+    <div class="alert alert--warning" dir="auto">
+      {{ 'requests.cancelReason' | t: { reason: r.cancelReason } }}
+    </div>
+  }
+
+  <div class="split">
+    <div>
+      @if (r.status === 'IN_PROGRESS') {
+        <section class="card card--accent" aria-labelledby="complete-title">
+          <h2 id="complete-title">{{ 'requests.completeTitle' | t }}</h2>
+          <div class="field">
+            <label for="complete-note">{{ 'requests.completePrompt' | t }}</label>
+            <textarea
+              id="complete-note"
+              rows="3"
+              maxlength="1000"
+              dir="auto"
+              [ngModel]="completeNote()"
+              (ngModelChange)="completeNote.set($event)"
+              data-testid="complete-note"
+            ></textarea>
+          </div>
+          <div class="form-actions">
+            <button
+              type="button"
+              class="btn btn--primary"
+              (click)="complete(r)"
+              [disabled]="busy()"
+              data-testid="complete-job"
+            >
+              <app-icon name="check" /> {{ 'requests.complete' | t }}
+            </button>
+          </div>
+        </section>
+      }
+
+      @if (auth.isOffice() || r.quote) {
+        <section class="card" aria-labelledby="quote-title" data-testid="quote-card">
+          <div class="card__header">
+            <h2 id="quote-title">{{ 'quote.title' | t }}</h2>
+            @if (r.quote; as q) {
+              <span class="muted">
+                @if (q.sentAt) {
+                  {{ 'quote.sentOn' | t: { date: fmt.dateTime(q.sentAt) } }}
+                } @else {
+                  <span class="badge badge--muted">{{ 'quote.draft' | t }}</span>
+                }
+                · {{ 'quote.validUntil' | t }} {{ fmt.plainDate(q.validUntil) }}
+                @if (q.expired) {
+                  <span class="badge badge--danger">{{ 'quote.expired' | t }}</span>
+                }
+              </span>
+            }
+          </div>
+          @if (editingQuote()) {
+            <app-quote-editor
+              [request]="r"
+              (saved)="update($event, 'quote.saved')"
+              (cancelled)="editingQuote.set(false)"
+              (conflict)="onConflict()"
+            />
+          } @else if (r.quote; as q) {
+            <app-quote-view [quote]="q" />
+            @if (q.respondedAt) {
+              <p class="hint">
+                {{ 'quote.respondedOn' | t: { date: fmt.dateTime(q.respondedAt) } }}
+              </p>
+            }
+            @if (auth.isOffice() && r.status === 'NEW') {
+              <button
+                type="button"
+                class="btn btn--small"
+                (click)="editingQuote.set(true)"
+                data-testid="edit-quote"
+              >
+                <app-icon name="edit" /> {{ 'quote.edit' | t }}
+              </button>
+            }
+          } @else {
+            <p class="muted">{{ 'quote.none' | t }}</p>
+            @if (auth.isOffice() && r.status === 'NEW') {
+              <button
+                type="button"
+                class="btn btn--primary"
+                (click)="editingQuote.set(true)"
+                data-testid="create-quote"
+              >
+                <app-icon name="receipt" /> {{ 'quote.create' | t }}
+              </button>
+            }
+          }
+        </section>
+      }
+
+      <section class="card" aria-labelledby="history-title">
+        <h2 id="history-title">{{ 'requests.history' | t }}</h2>
+        <ol class="timeline" data-testid="history">
+          @for (h of r.history; track $index) {
+            <li>
+              <span class="timeline__dot" aria-hidden="true"></span>
+              <div class="timeline__body">
+                <strong>{{ 'status.' + h.toStatus | t }}</strong>
+                <span class="timeline__meta"
+                  >{{ fmt.dateTime(h.createdAt) }} ·
+                  {{ 'requests.by' | t: { name: actorLabel(h.actor) } }}</span
+                >
+                @if (h.note) {
+                  <p>
+                    <bdi>{{ h.note }}</bdi>
+                  </p>
+                }
+              </div>
+            </li>
+          }
+        </ol>
+      </section>
+    </div>
+
+    <aside>
+      <section class="card" aria-labelledby="customer-title">
+        <h2 id="customer-title">{{ 'requests.customerSection' | t }}</h2>
+        <dl class="detail-list">
+          <div>
+            <dt>{{ 'common.name' | t }}</dt>
+            <dd>
+              <bdi>{{ r.customerName }}</bdi>
+            </dd>
+          </div>
+          <div>
+            <dt>{{ 'common.phone' | t }}</dt>
+            <dd>
+              <a [href]="'tel:+' + r.phone" dir="ltr">{{ phone(r.phone) }}</a>
+            </dd>
+          </div>
+          @if (r.email) {
+            <div>
+              <dt>{{ 'common.email' | t }}</dt>
+              <dd>
+                <a [href]="'mailto:' + r.email" dir="ltr">{{ r.email }}</a>
+              </dd>
+            </div>
+          }
+          <div>
+            <dt>{{ 'requests.address' | t }}</dt>
+            <dd>
+              <bdi>{{ r.district }}</bdi
+              >, {{ 'city.' + r.city | t }}
+              @if (r.address) {
+                <div class="list__sub" dir="auto">{{ r.address }}</div>
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>{{ 'requests.property' | t }}</dt>
+            <dd>{{ 'property.' + r.propertyType | t }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="card" aria-labelledby="request-title">
+        <h2 id="request-title">{{ 'requests.requestSection' | t }}</h2>
+        <dl class="detail-list">
+          <div>
+            <dt>{{ 'common.service' | t }}</dt>
+            <dd>{{ serviceLabel() }}</dd>
+          </div>
+          <div>
+            <dt>{{ 'requests.duration' | t }}</dt>
+            <dd>{{ fmt.duration(r.durationMinutes) }}</dd>
+          </div>
+          <div>
+            <dt>{{ 'requests.preferred' | t }}</dt>
+            <dd>{{ fmt.plainDate(r.preferredDate) }} · {{ 'slot.' + r.preferredSlot | t }}</dd>
+          </div>
+          <div>
+            <dt>{{ 'requests.created' | t }}</dt>
+            <dd>{{ fmt.dateTime(r.createdAt) }}</dd>
+          </div>
+          @if (r.details) {
+            <div>
+              <dt>{{ 'requests.details' | t }}</dt>
+              <dd dir="auto" class="pre-line">{{ r.details }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <section class="card" aria-labelledby="visit-title" data-testid="visit-card">
+        <h2 id="visit-title">{{ 'requests.visit' | t }}</h2>
+        <dl class="detail-list">
+          <div>
+            <dt>{{ 'common.technician' | t }}</dt>
+            <dd data-testid="visit-technician">
+              @if (r.technician; as tech) {
+                <bdi>{{ tech.fullName }}</bdi>
+              } @else {
+                <span class="muted">{{ 'requests.unassigned' | t }}</span>
+              }
+            </dd>
+          </div>
+          @if (r.scheduledStart) {
+            <div>
+              <dt>{{ 'requests.scheduled' | t }}</dt>
+              <dd data-testid="visit-time">
+                {{ fmt.date(r.scheduledStart) }} ·
+                {{ fmt.timeRange(r.scheduledStart, r.scheduledEnd) }}
+              </dd>
+            </div>
+          }
+          @if (r.startedAt) {
+            <div>
+              <dt>{{ 'requests.startedAt' | t }}</dt>
+              <dd>{{ fmt.dateTime(r.startedAt) }}</dd>
+            </div>
+          }
+          @if (r.completedAt) {
+            <div>
+              <dt>{{ 'requests.completedAt' | t }}</dt>
+              <dd>{{ fmt.dateTime(r.completedAt) }}</dd>
+            </div>
+          }
+          @if (r.completionNote) {
+            <div>
+              <dt>{{ 'requests.completionNote' | t }}</dt>
+              <dd dir="auto" class="pre-line">{{ r.completionNote }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    </aside>
+  </div>
+
+  @if (auth.isOffice()) {
+    <app-schedule-dialog
+      [request]="r"
+      (booked)="update($event, 'scheduleDialog.booked')"
+      (conflict)="onConflict()"
+    />
+  }
+}

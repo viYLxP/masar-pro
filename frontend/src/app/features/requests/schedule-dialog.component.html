@@ -1,0 +1,120 @@
+<dialog
+  #dialog
+  class="dialog dialog--wide"
+  aria-labelledby="schedule-title"
+  (close)="isOpen.set(false)"
+>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate data-testid="schedule-dialog">
+    <h2 id="schedule-title">
+      {{ 'scheduleDialog.title' | t: { reference: request().reference } }}
+    </h2>
+    <p class="muted">
+      {{ serviceLabel() }} · {{ fmt.duration(request().durationMinutes) }} ·
+      {{
+        'scheduleDialog.customerPrefers'
+          | t
+            : {
+                date: fmt.plainDate(request().preferredDate),
+                slot: ('slot.' + request().preferredSlot | t),
+              }
+      }}
+    </p>
+    @if (errorText(); as message) {
+      <div class="alert alert--danger" role="alert" data-testid="schedule-error">{{ message }}</div>
+    }
+
+    <div class="form-grid form-grid--3">
+      <div class="field">
+        <label for="s-tech">{{ 'scheduleDialog.technician' | t }}</label>
+        <select
+          id="s-tech"
+          formControlName="technicianId"
+          aria-describedby="s-tech-err"
+          data-testid="schedule-technician"
+        >
+          <option [ngValue]="null" disabled>{{ 'common.choose' | t }}</option>
+          @for (u of technicians.value() ?? []; track u.id) {
+            <option [ngValue]="u.id">{{ u.fullName }}</option>
+          }
+        </select>
+        <app-field-error
+          [control]="form.controls.technicianId"
+          [server]="serverFields()['technicianId']"
+          id="s-tech-err"
+        />
+      </div>
+      <div class="field">
+        <label for="s-date">{{ 'scheduleDialog.date' | t }}</label>
+        <input
+          id="s-date"
+          type="date"
+          formControlName="date"
+          [min]="today"
+          (change)="fixStartTime()"
+          aria-describedby="s-date-err"
+        />
+        <app-field-error
+          [control]="form.controls.date"
+          [server]="serverFields()['date']"
+          id="s-date-err"
+        />
+      </div>
+      <div class="field">
+        <label for="s-time">{{ 'scheduleDialog.start' | t }}</label>
+        <select
+          id="s-time"
+          formControlName="startTime"
+          aria-describedby="s-time-hint s-time-err"
+          data-testid="schedule-time"
+        >
+          @for (t of times(); track t) {
+            <option [value]="t">{{ fmt.clock(t) }}</option>
+          }
+        </select>
+        @if (endTime()) {
+          <p class="hint" id="s-time-hint">
+            {{
+              'scheduleDialog.duration'
+                | t
+                  : { duration: fmt.duration(request().durationMinutes), end: fmt.clock(endTime()) }
+            }}
+          </p>
+        }
+        <app-field-error
+          [control]="form.controls.startTime"
+          [server]="serverFields()['startTime']"
+          id="s-time-err"
+        />
+      </div>
+    </div>
+
+    @if (technicians.hasValue() && technicians.value().length === 0) {
+      <div class="alert alert--warning" role="status">
+        {{
+          'scheduleDialog.noTechnician'
+            | t: { city: ('city.' + request().city | t), service: serviceLabel() }
+        }}
+      </div>
+    }
+
+    <h3 class="section-gap">{{ 'scheduleDialog.dayBoard' | t }}</h3>
+    <p class="hint">{{ 'scheduleDialog.busyHint' | t }}</p>
+    @if (board.error()) {
+      <div class="alert alert--danger" role="alert">{{ 'app.loadFailed' | t }}</div>
+    } @else if (board.value(); as b) {
+      <app-day-timeline [technicians]="b.technicians" [proposal]="proposal()" [linkJobs]="false" />
+    }
+
+    <div class="dialog__actions">
+      <button type="button" class="btn" (click)="close()">{{ 'common.cancel' | t }}</button>
+      <button
+        type="submit"
+        class="btn btn--primary"
+        [disabled]="saving() || times().length === 0"
+        data-testid="schedule-submit"
+      >
+        {{ (saving() ? 'common.saving' : 'scheduleDialog.submit') | t }}
+      </button>
+    </div>
+  </form>
+</dialog>

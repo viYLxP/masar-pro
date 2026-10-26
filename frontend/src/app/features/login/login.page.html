@@ -1,0 +1,74 @@
+<div class="auth-page">
+  <button
+    type="button"
+    class="btn btn--small lang-switch auth-page__lang"
+    (click)="i18n.toggle()"
+    [attr.aria-label]="'app.switchToLabel' | t"
+    data-testid="lang-switch"
+  >
+    <app-icon name="globe" /> {{ 'app.switchTo' | t }}
+  </button>
+
+  <form class="auth-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="auth-card__brand">
+      <span class="logo" aria-hidden="true">M</span>
+      <strong>{{ 'app.name' | t }}</strong>
+    </div>
+    <h1>{{ 'login.title' | t }}</h1>
+    <p class="muted">{{ 'login.subtitle' | t }}</p>
+
+    @if (expired() && !error()) {
+      <p class="alert alert--warning" role="status">{{ 'errors.UNAUTHENTICATED' | t }}</p>
+    }
+    @if (error(); as message) {
+      <p class="alert alert--danger" role="alert" data-testid="login-error">{{ message }}</p>
+    }
+
+    <div class="field">
+      <label for="username">{{ 'login.username' | t }}</label>
+      <!-- dir="ltr": usernames are Latin, so they read correctly even on the Arabic page. -->
+      <!-- dir="ltr": أسماء المستخدمين لاتينية، فتنقرأ صح حتى في الصفحة العربية. -->
+      <input
+        id="username"
+        formControlName="username"
+        autocomplete="username"
+        dir="ltr"
+        aria-describedby="username-error"
+        [attr.aria-invalid]="form.controls.username.invalid && form.controls.username.touched"
+      />
+      <app-field-error [control]="form.controls.username" id="username-error" />
+    </div>
+
+    <div class="field">
+      <label for="password">{{ 'login.password' | t }}</label>
+      <div class="input-group">
+        <input
+          id="password"
+          formControlName="password"
+          autocomplete="current-password"
+          dir="ltr"
+          [type]="showPassword() ? 'text' : 'password'"
+          aria-describedby="password-error"
+        />
+        <button
+          type="button"
+          class="icon-btn"
+          (click)="showPassword.set(!showPassword())"
+          [attr.aria-label]="(showPassword() ? 'login.hidePassword' : 'login.showPassword') | t"
+          [attr.aria-pressed]="showPassword()"
+        >
+          <app-icon name="eye" />
+        </button>
+      </div>
+      <app-field-error [control]="form.controls.password" id="password-error" />
+    </div>
+
+    <button type="submit" class="btn btn--primary btn--block" [disabled]="submitting()">
+      {{ (submitting() ? 'login.submitting' : 'login.submit') | t }}
+    </button>
+    <p class="hint" dir="auto">{{ 'login.demoHint' | t }}</p>
+    <a class="auth-card__back" routerLink="/">
+      <app-icon name="arrow" class="icon--back" [flip]="true" /> {{ 'login.backToSite' | t }}
+    </a>
+  </form>
+</div>
