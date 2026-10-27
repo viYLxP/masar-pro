@@ -82,6 +82,13 @@ To use the real gateways, put their **test** keys in `.env` and restart:
 
 The customer pays on the gateway's own page and comes back to `/pay/:id?returned=1`; the server then asks the gateway for the result (and captures or authorises Tabby / Tamara orders). Keys stay on the server and card numbers never reach it.
 
+## Deployment
+
+Every green CI run on `main` publishes ready-to-run images for amd64 and arm64:
+`ghcr.io/viylxp/masar-pro-backend` and `ghcr.io/viylxp/masar-pro-frontend` (workflow `release.yml`).
+The production server runs this app together with the other two Pro apps behind Caddy with automatic HTTPS,
+nightly database backups, an optional nightly demo-data reset and automatic updates. Server files and steps: [`deploy/`](deploy/README.md).
+
 ## Local development
 
 You need Java 21, Node 22 and Docker (for PostgreSQL and the Testcontainers tests).
@@ -171,6 +178,12 @@ docker compose up --build
 الحسابات التجريبية: `admin` / `Admin@12345` (مدير)، `noura` / `Staff@12345` (منسّقة)، والفنيين `fahad` و`omar` و`saeed` (الرياض) و`yousef` (جدة) و`majed` (الدمام) بكلمة المرور `Staff@12345`. والعملاء: `0553001010` (ريم، عندها عرض تقدر تدفعه) و`0553001001` (هند) بكلمة المرور `Customer@12345`.
 
 **الدفع:** بدون مفاتيح، كل الطرق تستخدم البوابة التجريبية المدمجة (بدون فلوس حقيقية). البطاقة `5888 4500 0000 0003` (مدى) تنقبل، و`4000 0000 0000 0002` ترتفض. وللبوابات الحقيقية حط مفاتيحها التجريبية في `.env` (`CARD_PAYMENT_PROVIDER` و`MOYASAR_SECRET_KEY` أو `STRIPE_SECRET_KEY`، و`TABBY_SECRET_KEY` و`TABBY_MERCHANT_CODE`، و`TAMARA_API_TOKEN`). التفاصيل في قسم Payments setup فوق.
+
+### الرفع على سيرفر
+
+كل تشغيل CI ناجح على `main` ينشر صور جاهزة (amd64 وarm64) في `ghcr.io/viylxp/masar-pro-backend` و`-frontend`.
+والسيرفر يشغّل هذا التطبيق مع تطبيقي Pro الثانيين خلف Caddy بشهادة HTTPS تلقائية، ونسخ احتياطي يومي،
+وتصفير اختياري لبيانات العرض كل ليلة، وتحديث تلقائي. الملفات والخطوات: [`deploy/`](deploy/README.md).
 
 ### الاختبارات
 

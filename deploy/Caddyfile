@@ -1,0 +1,28 @@
+# Public entry for all three apps. Caddy requests and renews a free Let's Encrypt certificate for each host by itself
+# and redirects http:// to https://. Hosts come from deploy/.env.
+# المدخل العام للتطبيقات الثلاثة. Caddy يطلب ويجدد شهادة Let's Encrypt مجانية لكل عنوان بنفسه،
+# ويحوّل http:// إلى https://. العناوين تُقرأ من deploy/.env.
+
+(site) {
+	encode zstd gzip
+	header {
+		# Browsers remember to use https only for this site for a year. / المتصفح يتذكر يستخدم https فقط لهالموقع لمدة سنة.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	# Caddy replaces X-Forwarded-For with the real client address (it ignores any value the visitor sent).
+	# Caddy يكتب X-Forwarded-For بعنوان الزائر الحقيقي (ويتجاهل أي قيمة يرسلها الزائر).
+	reverse_proxy {args[0]}
+}
+
+{$MASAR_HOST} {
+	import site masar-frontend:80
+}
+
+{$STOCKMATE_HOST} {
+	import site stockmate-frontend:80
+}
+
+{$CLIENTFLOW_HOST} {
+	import site clientflow-frontend:80
+}

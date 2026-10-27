@@ -46,6 +46,27 @@ jobs:
       - run: npm run test:ci
       - run: npm run build
 
+  # Checks the production server files (deploy/) parse correctly, so a typo cannot break the next server update.
+  # يتأكد إن ملفات سيرفر الإنتاج (deploy/) سليمة، حتى خطأ كتابي ما يكسر تحديث السيرفر الجاي.
+  deploy-config:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n setup.sh update.sh backup.sh demo-reset.sh
+      - run: shellcheck -S warning setup.sh update.sh backup.sh demo-reset.sh
+      - name: Compose file
+        run: |
+          cp .env.example .env
+          sed -i -E 's/^(MASAR|STOCKMATE|CLIENTFLOW)_HOST=$/\1_HOST=example.test/; s/^(.*_(JWT_SECRET|DB_PASSWORD)|ADMIN_PASSWORD)=$/\1=ci-placeholder/' .env
+          docker compose config --quiet
+      - name: Caddyfile
+        run: >
+          docker run --rm -e MASAR_HOST=a.test -e STOCKMATE_HOST=b.test -e CLIENTFLOW_HOST=c.test
+          -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
   e2e:
     needs: [backend, frontend]
     runs-on: ubuntu-latest

@@ -1,6 +1,10 @@
 # ---------- Stage 1: build the Angular app ----------
 # ---------- المرحلة 1: بناء تطبيق Angular ----------
-FROM node:22-alpine AS build
+# The build stage runs on the machine's own CPU even when producing an ARM image, because its output (jar / static files)
+# is the same on every CPU; only the runtime stage below is per-architecture. This keeps multi-arch builds fast.
+# مرحلة البناء تشتغل على معالج الجهاز نفسه حتى لو نبني صورة ARM، لأن ناتجها (jar أو ملفات ثابتة) واحد لكل المعالجات؛
+# والمرحلة الثانية فقط تختلف حسب المعالج. وهذا يخلي بناء الصور لأكثر من معالج سريع.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 # Install dependencies first (cached layer), then copy the source.
 # نثبّت المكتبات أولًا (طبقة محفوظة)، بعدين ننسخ الكود.
