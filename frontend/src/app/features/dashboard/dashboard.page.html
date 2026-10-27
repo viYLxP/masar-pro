@@ -29,6 +29,25 @@
       }}</span>
     </div>
     <div class="card stat-card">
+      <span class="stat-card__label">{{ 'dashboard.collected' | t }}</span>
+      <strong class="stat-card__value" data-testid="stat-collected">{{
+        fmt.money(d.collectedThisMonth)
+      }}</strong>
+      <span class="stat-card__sub">{{ 'dashboard.collectedHint' | t }}</span>
+    </div>
+    <a
+      class="card stat-card stat-card--link"
+      [class.stat-card--warn]="d.unpaidCompleted > 0"
+      routerLink="/app/requests"
+      [queryParams]="{ status: 'COMPLETED' }"
+    >
+      <span class="stat-card__label">{{ 'dashboard.unpaid' | t }}</span>
+      <strong class="stat-card__value" data-testid="stat-unpaid">{{
+        fmt.number(d.unpaidCompleted)
+      }}</strong>
+      <span class="stat-card__sub">{{ 'dashboard.unpaidHint' | t }}</span>
+    </a>
+    <div class="card stat-card">
       <span class="stat-card__label">{{ 'dashboard.acceptance' | t }}</span>
       <strong class="stat-card__value">{{
         d.acceptanceRate === null ? '—' : fmt.percent(d.acceptanceRate)

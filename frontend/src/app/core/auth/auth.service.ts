@@ -34,16 +34,37 @@ export class AuthService {
     return role === 'ADMIN' || role === 'DISPATCHER';
   });
   readonly isTechnician = computed(() => this.userSignal()?.role === 'TECHNICIAN');
+  // Customers who signed up on the website; they never enter the staff app.
+  // العملاء اللي سجلوا من الموقع؛ وما يدخلون تطبيق الموظفين أبدًا.
+  readonly isCustomer = computed(() => this.userSignal()?.role === 'CUSTOMER');
   // Where each role lands after signing in. / الصفحة اللي يوصل لها كل دور بعد الدخول.
-  readonly home = computed(() => (this.isTechnician() ? '/app/jobs' : '/app/dashboard'));
+  readonly home = computed(() =>
+    this.isCustomer() ? '/account' : this.isTechnician() ? '/app/jobs' : '/app/dashboard',
+  );
 
+  // Staff sign in with a username, customers with their mobile number; the server tells them apart.
+  // الموظف يدخل باسم المستخدم، والعميل برقم جواله؛ والخادم يفرّق بينهم.
   login(username: string, password: string): Observable<LoginResponse> {
-    return this.api.post<LoginResponse>('/auth/login', { username, password }).pipe(
-      tap((response) => {
-        this.storeToken(response.token);
-        this.userSignal.set(response.user);
-      }),
-    );
+    return this.api
+      .post<LoginResponse>('/auth/login', { username, password })
+      .pipe(tap((response) => this.start(response)));
+  }
+
+  /** Creates a customer account and signs it in. / ينشئ حساب عميل ويسجّل دخوله. */
+  register(body: {
+    fullName: string;
+    phone: string;
+    email: string | null;
+    password: string;
+  }): Observable<LoginResponse> {
+    return this.api
+      .post<LoginResponse>('/auth/register', body)
+      .pipe(tap((response) => this.start(response)));
+  }
+
+  /** Keeps the page's copy of the user in step after a profile change. / يحدّث نسخة المستخدم بعد تعديل الملف. */
+  updateUser(user: User): void {
+    this.userSignal.set(user);
   }
 
   /**
@@ -68,15 +89,23 @@ export class AuthService {
     }
   }
 
+  // Customers go back to the public site; staff to the sign-in page.
+  // العميل يرجع للموقع العام؛ والموظف لصفحة الدخول.
   logout(): void {
+    const target = this.isCustomer() ? '/' : '/login';
     this.clear();
-    void this.router.navigate(['/login']);
+    void this.router.navigateByUrl(target);
   }
 
   /** Called by the interceptor on any 401 from the API. / يستدعيه الـ interceptor عند أي 401 من الـ API. */
   sessionExpired(): void {
     this.clear();
     void this.router.navigate(['/login'], { queryParams: { expired: 1 } });
+  }
+
+  private start(response: LoginResponse): void {
+    this.storeToken(response.token);
+    this.userSignal.set(response.user);
   }
 
   private storeToken(token: string): void {

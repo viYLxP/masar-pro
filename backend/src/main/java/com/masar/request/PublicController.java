@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.masar.catalog.ServiceTypeDtos.ServiceTypeResponse;
 import com.masar.catalog.ServiceTypeService;
+import com.masar.payment.PaymentDtos.CheckoutResponse;
+import com.masar.payment.PaymentDtos.GuestPayRequest;
 import com.masar.request.RequestDtos.BookingCreated;
 import com.masar.request.RequestDtos.BookingRequest;
 import com.masar.request.RequestDtos.CustomerResponse;
@@ -66,5 +68,12 @@ public class PublicController {
     @PostMapping("/requests/{reference}/reject")
     public PublicView reject(@PathVariable String reference, @Valid @RequestBody CustomerResponse body) {
         return bookings.reject(reference, body.phone(), body.reason());
+    }
+
+    // Opens the payment page for an accepted quote, with the method the customer picked.
+    // يفتح صفحة الدفع لعرض مقبول، بالطريقة اللي اختارها العميل.
+    @PostMapping("/requests/{reference}/pay")
+    public CheckoutResponse pay(@PathVariable String reference, @Valid @RequestBody GuestPayRequest body) {
+        return bookings.pay(reference, body.phone(), body.method());
     }
 }

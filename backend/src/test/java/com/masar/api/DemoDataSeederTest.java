@@ -39,7 +39,7 @@ class DemoDataSeederTest extends IntegrationTest {
         for (Map<String, Object> row : jdbc.queryForList("select status, count(*) c from service_request group by status")) {
             counts.put((String) row.get("status"), ((Number) row.get("c")).longValue());
         }
-        assertThat(counts).containsEntry("NEW", 3L).containsEntry("QUOTED", 2L).containsEntry("ACCEPTED", 1L)
+        assertThat(counts).containsEntry("NEW", 3L).containsEntry("QUOTED", 3L).containsEntry("ACCEPTED", 1L)
                 .containsEntry("SCHEDULED", 2L).containsEntry("IN_PROGRESS", 1L).containsEntry("COMPLETED", 3L)
                 .containsEntry("REJECTED", 1L).containsEntry("CANCELLED", 1L);
 
@@ -74,6 +74,22 @@ class DemoDataSeederTest extends IntegrationTest {
                   and (scheduled_start at time zone 'Asia/Riyadh')::date = (now() at time zone 'Asia/Riyadh')::date
                 """, Long.class);
         assertThat(todayJobs).isBetween(0L, 1L);
+
+        // Seeded payments: 2 cash, 2 card, each on a request marked PAID; the customer accounts own 3 requests.
+        // المدفوعات المزروعة: 2 كاش و2 بطاقة، كل وحدة على طلب معلّم PAID؛ وحسابات العملاء عندها 3 طلبات.
+        assertThat(jdbc.queryForObject("select count(*) from payment where status = 'PAID' and method = 'CASH'",
+                Long.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from payment where status = 'PAID' and method = 'CARD'",
+                Long.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from service_request r where r.payment_status = 'PAID'
+                  and exists (select 1 from payment p where p.request_id = r.id and p.status = 'PAID'
+                              and p.amount = (select q.total from quote q where q.request_id = r.id))
+                """, Long.class)).isEqualTo(4);
+        assertThat(jdbc.queryForObject("select count(*) from payment where paid_at > now()", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from service_request where customer_id is not null",
+                Long.class)).isEqualTo(3);
+        login("0553001010", "Customer@12345");
 
         String token = login("noura", "Staff@12345");
         mvc.perform(auth(get("/api/dashboard"), token))

@@ -20,6 +20,7 @@ import { startWith } from 'rxjs';
 
 import { ApiError, errorMessage, toApiError } from '../core/api/api-error';
 import { ApiService } from '../core/api/api.service';
+import { AuthService } from '../core/auth/auth.service';
 import {
   BookingCreated,
   CITIES,
@@ -37,6 +38,7 @@ import {
   SAUDI_MOBILE,
   SLOT_END_MIN,
   addDays,
+  localPhone,
   riyadhMinutesNow,
   riyadhToday,
   serviceName,
@@ -55,9 +57,11 @@ function saudiMobile(control: AbstractControl): ValidationErrors | null {
  * The booking form, shared by the public "Book a service" page and the office "New request" page.
  * نموذج الحجز، مشترك بين صفحة "احجز خدمة" العامة وصفحة "طلب جديد" في المكتب.
  *
- * The two differ only in the endpoint (public vs. staff) and in a few labels; the rules are the same,
- * because the server applies the same checks to both.
- * الفرق بينهم بس في الرابط (عام أو للموظفين) وبعض العناوين؛ والقواعد نفسها لأن الخادم يطبق نفس الفحوص على الاثنين.
+ * The modes differ only in the endpoint (guest, signed-in customer or staff) and in a few labels; the rules
+ * are the same, because the server applies the same checks to all of them. A signed-in customer books with
+ * the account's mobile number, so that field is filled and locked.
+ * الأوضاع تختلف بس في الرابط (زائر أو عميل مسجّل أو موظف) وبعض العناوين؛ والقواعد نفسها لأن الخادم يطبق
+ * نفس الفحوص على الكل. والعميل المسجّل يحجز برقم جوال حسابه، فالحقل يتعبى ويتقفل.
  */
 @Component({
   selector: 'app-booking-form',
@@ -70,7 +74,9 @@ export class BookingFormComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly fmt = inject(FormatService);
 
-  readonly mode = input<'public' | 'office'>('public');
+  private readonly auth = inject(AuthService);
+
+  readonly mode = input<'public' | 'account' | 'office'>('public');
   // Pre-selected service, e.g. from "Book AC maintenance" on the home page (?service=3).
   // خدمة مختارة مسبقًا، مثل زر "احجز صيانة المكيفات" في الصفحة الرئيسية (?service=3).
   readonly serviceId = input<number | null>(null);
@@ -131,6 +137,16 @@ export class BookingFormComponent {
   protected readonly serverFields = computed(() => this.apiError()?.fields ?? {});
 
   constructor() {
+    // Account mode: the customer's own name, mobile and email. / وضع الحساب: اسم العميل وجواله وإيميله.
+    effect(() => {
+      const user = this.auth.user();
+      if (this.mode() !== 'account' || !user) return;
+      const c = this.form.controls;
+      if (!c.customerName.dirty) c.customerName.setValue(user.fullName);
+      if (!c.email.dirty) c.email.setValue(user.email ?? '');
+      c.phone.setValue(localPhone(user.phone));
+      c.phone.disable();
+    });
     // Apply the pre-selected service once the list has loaded (only if it is really bookable).
     // نطبّق الخدمة المختارة مسبقًا بعد ما تحمل القائمة (بس لو فعلًا متاحة للحجز).
     effect(() => {
@@ -192,7 +208,8 @@ export class BookingFormComponent {
       email: v.email.trim() || null,
       website: v.website,
     };
-    const path = this.mode() === 'office' ? '/requests' : '/public/requests';
+    const paths = { public: '/public/requests', account: '/account/requests', office: '/requests' };
+    const path = paths[this.mode()];
     this.submitting.set(true);
     this.apiError.set(null);
     this.api.post<BookingCreated>(path, body).subscribe({

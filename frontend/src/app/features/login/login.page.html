@@ -26,12 +26,13 @@
 
     <div class="field">
       <label for="username">{{ 'login.username' | t }}</label>
-      <!-- dir="ltr": usernames are Latin, so they read correctly even on the Arabic page. -->
-      <!-- dir="ltr": أسماء المستخدمين لاتينية، فتنقرأ صح حتى في الصفحة العربية. -->
+      <!-- dir="ltr": usernames and mobile numbers are Latin digits/letters, so they read correctly on the Arabic page. -->
+      <!-- dir="ltr": أسماء المستخدمين وأرقام الجوال لاتينية، فتنقرأ صح في الصفحة العربية. -->
       <input
         id="username"
         formControlName="username"
         autocomplete="username"
+        data-testid="login-username"
         dir="ltr"
         aria-describedby="username-error"
         [attr.aria-invalid]="form.controls.username.invalid && form.controls.username.touched"
@@ -66,6 +67,15 @@
     <button type="submit" class="btn btn--primary btn--block" [disabled]="submitting()">
       {{ (submitting() ? 'login.submitting' : 'login.submit') | t }}
     </button>
+    <p class="auth-card__switch">
+      {{ 'login.noAccount' | t }}
+      <a
+        routerLink="/register"
+        [queryParams]="{ returnUrl: returnUrl() }"
+        data-testid="to-register"
+        >{{ 'login.registerLink' | t }}</a
+      >
+    </p>
     <p class="hint" dir="auto">{{ 'login.demoHint' | t }}</p>
     <a class="auth-card__back" routerLink="/">
       <app-icon name="arrow" class="icon--back" [flip]="true" /> {{ 'login.backToSite' | t }}

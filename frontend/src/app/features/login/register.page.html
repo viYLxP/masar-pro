@@ -1,0 +1,153 @@
+<div class="auth-page">
+  <button
+    type="button"
+    class="btn btn--small lang-switch auth-page__lang"
+    (click)="i18n.toggle()"
+    [attr.aria-label]="'app.switchToLabel' | t"
+    data-testid="lang-switch"
+  >
+    <app-icon name="globe" /> {{ 'app.switchTo' | t }}
+  </button>
+
+  <form class="auth-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="auth-card__brand">
+      <span class="logo" aria-hidden="true">M</span>
+      <strong>{{ 'app.name' | t }}</strong>
+    </div>
+    <h1>{{ 'register.title' | t }}</h1>
+    <p class="muted">{{ 'register.subtitle' | t }}</p>
+
+    @if (error(); as message) {
+      <p class="alert alert--danger" role="alert" data-testid="register-error">
+        {{ message }}
+        @if (apiErrorCode() === 'PHONE_REGISTERED') {
+          <a routerLink="/login">{{ 'register.signIn' | t }}</a>
+        }
+      </p>
+    }
+
+    <div class="field">
+      <label for="r-name">{{ 'register.fullName' | t }}</label>
+      <input
+        id="r-name"
+        formControlName="fullName"
+        autocomplete="name"
+        maxlength="120"
+        aria-describedby="r-name-err"
+        data-testid="register-name"
+      />
+      <app-field-error
+        [control]="form.controls.fullName"
+        [server]="serverFields()['fullName']"
+        id="r-name-err"
+      />
+    </div>
+
+    <div class="field">
+      <label for="r-phone">{{ 'register.phone' | t }}</label>
+      <input
+        id="r-phone"
+        type="tel"
+        inputmode="tel"
+        formControlName="phone"
+        dir="ltr"
+        maxlength="20"
+        autocomplete="tel"
+        placeholder="05XXXXXXXX"
+        aria-describedby="r-phone-hint r-phone-err"
+        data-testid="register-phone"
+      />
+      <p class="hint" id="r-phone-hint">{{ 'register.phoneHint' | t }}</p>
+      <app-field-error
+        [control]="form.controls.phone"
+        [server]="serverFields()['phone']"
+        id="r-phone-err"
+      />
+    </div>
+
+    <div class="field">
+      <label for="r-email"
+        >{{ 'register.email' | t }} <small>({{ 'common.optional' | t }})</small></label
+      >
+      <input
+        id="r-email"
+        type="email"
+        formControlName="email"
+        dir="ltr"
+        maxlength="150"
+        autocomplete="email"
+        aria-describedby="r-email-err"
+      />
+      <app-field-error
+        [control]="form.controls.email"
+        [server]="serverFields()['email']"
+        id="r-email-err"
+      />
+    </div>
+
+    <div class="field">
+      <label for="r-password">{{ 'register.password' | t }}</label>
+      <div class="input-group">
+        <input
+          id="r-password"
+          formControlName="password"
+          autocomplete="new-password"
+          dir="ltr"
+          maxlength="72"
+          [type]="showPassword() ? 'text' : 'password'"
+          aria-describedby="r-password-hint r-password-err"
+          data-testid="register-password"
+        />
+        <button
+          type="button"
+          class="icon-btn"
+          (click)="showPassword.set(!showPassword())"
+          [attr.aria-label]="(showPassword() ? 'login.hidePassword' : 'login.showPassword') | t"
+          [attr.aria-pressed]="showPassword()"
+        >
+          <app-icon name="eye" />
+        </button>
+      </div>
+      <p class="hint" id="r-password-hint">{{ 'register.passwordHint' | t }}</p>
+      <app-field-error
+        [control]="form.controls.password"
+        [server]="serverFields()['password']"
+        id="r-password-err"
+      />
+    </div>
+
+    <div class="field">
+      <label for="r-confirm">{{ 'register.confirmPassword' | t }}</label>
+      <input
+        id="r-confirm"
+        formControlName="confirm"
+        autocomplete="new-password"
+        dir="ltr"
+        maxlength="72"
+        [type]="showPassword() ? 'text' : 'password'"
+        aria-describedby="r-confirm-err"
+        data-testid="register-confirm"
+      />
+      <app-field-error [control]="form.controls.confirm" id="r-confirm-err" />
+    </div>
+
+    <button
+      type="submit"
+      class="btn btn--primary btn--block"
+      [disabled]="submitting()"
+      data-testid="register-submit"
+    >
+      {{ (submitting() ? 'register.submitting' : 'register.submit') | t }}
+    </button>
+    <p class="hint">{{ 'register.privacy' | t }}</p>
+    <p class="auth-card__switch">
+      {{ 'register.haveAccount' | t }}
+      <a routerLink="/login" [queryParams]="{ returnUrl: returnUrl() }">{{
+        'register.signIn' | t
+      }}</a>
+    </p>
+    <a class="auth-card__back" routerLink="/">
+      <app-icon name="arrow" class="icon--back" [flip]="true" /> {{ 'login.backToSite' | t }}
+    </a>
+  </form>
+</div>

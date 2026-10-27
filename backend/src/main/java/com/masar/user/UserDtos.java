@@ -24,15 +24,15 @@ public final class UserDtos {
 
     // Public view of a user: never includes the password hash.
     // العرض العام للمستخدم: لا يحتوي أبدًا على ناتج تشفير كلمة المرور.
-    public record UserResponse(Long id, String username, String fullName, Role role, String phone, City city,
-                               List<ServiceRef> skills, boolean active, Instant createdAt) {
+    public record UserResponse(Long id, String username, String fullName, Role role, String phone, String email,
+                               City city, List<ServiceRef> skills, boolean active, Instant createdAt) {
 
         public static UserResponse from(AppUser user) {
             List<ServiceRef> skills = user.getSkills().stream()
                     .sorted(Comparator.comparing(s -> s.getSortOrder()))
                     .map(ServiceRef::of).toList();
             return new UserResponse(user.getId(), user.getUsername(), user.getFullName(), user.getRole(),
-                    user.getPhone(), user.getCity(), skills, user.isActive(), user.getCreatedAt());
+                    user.getPhone(), user.getEmail(), user.getCity(), skills, user.isActive(), user.getCreatedAt());
         }
     }
 

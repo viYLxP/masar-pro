@@ -26,6 +26,7 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { localPhone, serviceName } from '../../core/masar';
 import { IconComponent } from '../../core/ui/icon.component';
 import { PaginationComponent } from '../../core/ui/pagination.component';
+import { PaymentBadgeComponent } from '../../shared/payment-badge.component';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
 
 /**
@@ -36,7 +37,14 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
  */
 @Component({
   selector: 'app-request-list',
-  imports: [RouterLink, TranslatePipe, IconComponent, PaginationComponent, StatusBadgeComponent],
+  imports: [
+    RouterLink,
+    TranslatePipe,
+    IconComponent,
+    PaginationComponent,
+    StatusBadgeComponent,
+    PaymentBadgeComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './request-list.page.html',
 })

@@ -5,7 +5,7 @@
 // Instants are UTC ISO strings; plain dates ("2026-10-26") are already Riyadh calendar days.
 // الأوقات نصوص ISO بتوقيت UTC؛ والتواريخ المجردة ("2026-10-26") هي أيام تقويم الرياض أصلًا.
 
-export type Role = 'ADMIN' | 'DISPATCHER' | 'TECHNICIAN';
+export type Role = 'ADMIN' | 'DISPATCHER' | 'TECHNICIAN' | 'CUSTOMER';
 export type City = 'RIYADH' | 'JEDDAH' | 'DAMMAM' | 'KHOBAR' | 'MAKKAH' | 'MADINAH';
 export type PropertyType = 'APARTMENT' | 'VILLA' | 'OFFICE' | 'RETAIL';
 export type TimeSlot = 'MORNING' | 'AFTERNOON' | 'EVENING';
@@ -22,7 +22,13 @@ export type RequestStatus =
 export const CITIES: City[] = ['RIYADH', 'JEDDAH', 'DAMMAM', 'KHOBAR', 'MAKKAH', 'MADINAH'];
 export const PROPERTY_TYPES: PropertyType[] = ['APARTMENT', 'VILLA', 'OFFICE', 'RETAIL'];
 export const TIME_SLOTS: TimeSlot[] = ['MORNING', 'AFTERNOON', 'EVENING'];
+// Staff roles the admin can give; customers sign themselves up on the website.
+// أدوار الموظفين اللي يعطيها المدير؛ والعملاء يسجّلون بأنفسهم من الموقع.
 export const ROLES: Role[] = ['ADMIN', 'DISPATCHER', 'TECHNICIAN'];
+export type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED';
+export type PaymentMethod = 'CARD' | 'APPLE_PAY' | 'TABBY' | 'TAMARA' | 'CASH';
+export type PaymentProvider = 'SANDBOX' | 'MOYASAR' | 'STRIPE' | 'TABBY' | 'TAMARA' | 'CASH';
+export type PaymentAttemptStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 // The happy path, in order; REJECTED and CANCELLED are exits from it.
 // المسار الطبيعي بالترتيب؛ وREJECTED وCANCELLED مخارج منه.
 export const MAIN_FLOW: RequestStatus[] = [
@@ -68,6 +74,7 @@ export interface User {
   fullName: string;
   role: Role;
   phone: string | null;
+  email: string | null;
   city: City | null;
   skills: ServiceRef[];
   active: boolean;
@@ -135,6 +142,84 @@ export interface RequestSummary {
   scheduledStart: string | null;
   scheduledEnd: string | null;
   quoteTotal: number | null;
+  paymentStatus: PaymentStatus;
+  createdAt: string;
+}
+
+/** One payment attempt as the office sees it. / محاولة دفع وحدة مثل ما يشوفها المكتب. */
+export interface PaymentView {
+  id: string;
+  method: PaymentMethod;
+  provider: PaymentProvider;
+  status: PaymentAttemptStatus;
+  amount: number;
+  currency: string;
+  cardBrand: string | null;
+  cardLast4: string | null;
+  failureReason: string | null;
+  recordedBy: string;
+  createdAt: string;
+  paidAt: string | null;
+  refundedAt: string | null;
+}
+
+export interface Instalment {
+  number: number;
+  amount: number;
+  dueDate: string;
+}
+
+/** The payment part of the customer's view. / جزء الدفع في عرض العميل. */
+export interface PaymentSummary {
+  status: PaymentStatus;
+  payable: boolean;
+  amountDue: number | null;
+  // Online methods offered right now (instalments only within their limits).
+  // الطرق المتاحة الحين أونلاين (التقسيط بس داخل حدوده).
+  methods: PaymentMethod[];
+  instalments: Instalment[];
+  method: PaymentMethod | null;
+  cardBrand: string | null;
+  cardLast4: string | null;
+  paidAt: string | null;
+}
+
+export interface CheckoutResponse {
+  paymentId: string;
+  checkoutUrl: string;
+}
+
+/** What the /pay/:id page shows. / اللي تعرضه صفحة ‎/pay/:id. */
+export interface CheckoutPage {
+  id: string;
+  method: PaymentMethod;
+  status: PaymentAttemptStatus;
+  provider: PaymentProvider;
+  amount: number;
+  currency: string;
+  reference: string;
+  service: ServiceRef;
+  instalments: Instalment[];
+  failureReason: string | null;
+  cardBrand: string | null;
+  cardLast4: string | null;
+  paidAt: string | null;
+  checkoutUrl: string | null;
+}
+
+/** A row in the customer's "My requests". / صف في "طلباتي" عند العميل. */
+export interface AccountRequestRow {
+  reference: string;
+  status: RequestStatus;
+  service: ServiceRef;
+  city: City;
+  district: string;
+  preferredDate: string;
+  preferredSlot: TimeSlot;
+  scheduledStart: string | null;
+  quoteTotal: number | null;
+  paymentStatus: PaymentStatus;
+  payable: boolean;
   createdAt: string;
 }
 
@@ -164,6 +249,10 @@ export interface RequestDetail {
   cancelReason: string | null;
   quote: Quote | null;
   history: RequestEvent[];
+  paymentStatus: PaymentStatus;
+  payments: PaymentView[];
+  // true when the request belongs to a customer account. / true لما الطلب مربوط بحساب عميل.
+  registeredCustomer: boolean;
   createdAt: string;
   version: number;
 }
@@ -187,6 +276,7 @@ export interface PublicView {
   rejectReason: string | null;
   cancelReason: string | null;
   history: { status: RequestStatus; at: string }[];
+  payment: PaymentSummary;
   createdAt: string;
 }
 
@@ -247,6 +337,9 @@ export interface Dashboard {
   statusCounts: Record<RequestStatus, number>;
   revenueThisMonth: number;
   completedThisMonth: number;
+  // Money received this month and not refunded (cash + online). / الفلوس اللي وصلت هالشهر وما ترجعت (كاش + أونلاين).
+  collectedThisMonth: number;
+  unpaidCompleted: number;
   // null when no quote was answered in the last 90 days. / null لو ما انرد على أي عرض آخر 90 يوم.
   acceptanceRate: number | null;
   today: JobSlot[];

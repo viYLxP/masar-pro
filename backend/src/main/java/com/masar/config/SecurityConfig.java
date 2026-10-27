@@ -42,8 +42,10 @@ import com.masar.user.AppUser;
 import com.masar.user.AppUserRepository;
 
 /**
- * Security setup: public customer endpoints, and stateless JWT authentication for staff (ADMIN, DISPATCHER, TECHNICIAN).
- * إعداد الأمان: روابط عامة للعملاء، ومصادقة JWT بدون جلسات (stateless) للموظفين (ADMIN و DISPATCHER و TECHNICIAN).
+ * Security setup: public endpoints for visitors, and stateless JWT authentication for customers (CUSTOMER) and staff
+ * (ADMIN, DISPATCHER, TECHNICIAN).
+ * إعداد الأمان: روابط عامة للزوار، ومصادقة JWT بدون جلسات (stateless) للعملاء (CUSTOMER) والموظفين
+ * (ADMIN و DISPATCHER و TECHNICIAN).
  *
  * <p>We use Spring Security's built-in OAuth2 Resource Server support to validate tokens instead of a
  * hand-written filter: it checks the signature and expiry for us and is well tested.</p>
@@ -75,17 +77,23 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints: login, health check and the API docs.
                         // روابط عامة: تسجيل الدخول، فحص الصحة، وتوثيق الـ API.
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers("/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // The customer side of the site: services, booking, tracking and answering the quote.
                         // الجهة العامة للموقع: الخدمات، الحجز، التتبع، والرد على عرض السعر.
                         .requestMatchers("/api/public/**").permitAll()
+                        // A customer's own account and requests. / حساب العميل وطلباته.
+                        .requestMatchers("/api/account/**").hasRole("CUSTOMER")
+                        // "Who am I" works for every signed-in account. / "مين أنا" يشتغل لكل حساب مسجّل.
+                        .requestMatchers("/api/auth/**").authenticated()
                         // User management is admin-only.
                         // إدارة المستخدمين للمدير فقط.
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
-                        // Everything else under /api needs a valid token.
-                        // باقي روابط /api تحتاج رمزًا صالحًا.
-                        .requestMatchers("/api/**").authenticated()
+                        // Everything else is the staff app. Listing the roles (instead of "authenticated") keeps
+                        // customers out of every staff endpoint, including ones added later.
+                        // الباقي تطبيق الموظفين. ذكر الأدوار (بدل "أي مسجّل") يخلّي العملاء برا كل روابط الموظفين،
+                        // حتى اللي تنضاف بعدين.
+                        .requestMatchers("/api/**").hasAnyRole("ADMIN", "DISPATCHER", "TECHNICIAN")
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(oauth -> oauth
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter(users)))

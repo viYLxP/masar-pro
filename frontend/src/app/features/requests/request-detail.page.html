@@ -126,6 +126,17 @@
               data-testid="complete-note"
             ></textarea>
           </div>
+          @if (canTakeCash(r)) {
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                [checked]="cashCollected()"
+                (change)="cashCollected.set($any($event.target).checked)"
+                data-testid="complete-cash"
+              />
+              {{ 'payment.cashCollected' | t: { amount: fmt.money(r.quote?.total) } }}
+            </label>
+          }
           <div class="form-actions">
             <button
               type="button"
@@ -230,6 +241,9 @@
             <dt>{{ 'common.name' | t }}</dt>
             <dd>
               <bdi>{{ r.customerName }}</bdi>
+              <span class="badge" [class.badge--info]="r.registeredCustomer">{{
+                (r.registeredCustomer ? 'payment.account' : 'payment.guest') | t
+              }}</span>
             </dd>
           </div>
           <div>
@@ -333,6 +347,60 @@
           }
         </dl>
       </section>
+
+      @if (r.quote) {
+        <section class="card" aria-labelledby="payment-title" data-testid="payment-card">
+          <div class="card__header">
+            <h2 id="payment-title">{{ 'requests.payment' | t }}</h2>
+            <app-payment-badge [status]="r.paymentStatus" data-testid="detail-payment" />
+          </div>
+          <ul class="list">
+            @for (p of r.payments; track p.id) {
+              <li>
+                <div class="list__main">
+                  <span
+                    >{{ 'payment.method.' + p.method | t }} ·
+                    <strong class="num">{{ fmt.money(p.amount) }}</strong></span
+                  >
+                  <span class="list__sub">
+                    {{ fmt.dateTime(p.paidAt ?? p.createdAt) }}
+                    @if (p.method !== 'CASH') {
+                      · {{ 'payment.provider.' + p.provider | t }}
+                    }
+                    @if (paymentDetail(p); as detail) {
+                      · <bdi>{{ detail }}</bdi>
+                    }
+                    @if (reasonText(p); as reason) {
+                      · {{ reason }}
+                    }
+                  </span>
+                </div>
+                <span
+                  class="badge"
+                  [class.badge--success]="p.status === 'PAID'"
+                  [class.badge--danger]="p.status === 'FAILED'"
+                  [class.badge--info]="p.status === 'REFUNDED'"
+                  [class.badge--muted]="p.status === 'PENDING'"
+                  >{{ 'payment.attempt.' + p.status | t }}</span
+                >
+              </li>
+            } @empty {
+              <li class="empty-state">{{ 'payment.none' | t }}</li>
+            }
+          </ul>
+          @if (canTakeCash(r) && r.status !== 'IN_PROGRESS') {
+            <button
+              type="button"
+              class="btn btn--small"
+              (click)="recordCash(r)"
+              [disabled]="busy()"
+              data-testid="record-cash"
+            >
+              <app-icon name="cash" /> {{ 'payment.recordCash' | t }}
+            </button>
+          }
+        </section>
+      }
     </aside>
   </div>
 

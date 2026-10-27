@@ -124,6 +124,11 @@
             </td>
             <td class="cell-end num">
               {{ r.quoteTotal === null ? '—' : fmt.amount(r.quoteTotal) }}
+              @if (
+                r.quoteTotal !== null && (r.paymentStatus !== 'UNPAID' || r.status === 'COMPLETED')
+              ) {
+                <div><app-payment-badge [status]="r.paymentStatus" /></div>
+              }
             </td>
           </tr>
         } @empty {

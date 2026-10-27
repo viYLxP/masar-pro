@@ -127,6 +127,16 @@ public class ServiceRequest {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // The customer account behind the request; null for guests and for calls taken by the office.
+    // حساب العميل صاحب الطلب؛ فاضي للزوار وللمكالمات اللي يدخلها المكتب.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private AppUser customer;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 20)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
     @Version
     private Long version;
 
@@ -213,5 +223,9 @@ public class ServiceRequest {
     public void setQuote(Quote quote) { this.quote = quote; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public AppUser getCustomer() { return customer; }
+    public void setCustomer(AppUser customer) { this.customer = customer; }
+    public PaymentStatus getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(PaymentStatus paymentStatus) { this.paymentStatus = paymentStatus; }
     public Long getVersion() { return version; }
 }

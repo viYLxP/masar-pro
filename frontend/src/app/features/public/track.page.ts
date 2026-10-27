@@ -14,23 +14,20 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 
 import { ApiError, errorMessage, toApiError } from '../../core/api/api-error';
 import { ApiService } from '../../core/api/api.service';
-import { PublicView } from '../../core/api/models';
-import { FormatService } from '../../core/i18n/format.service';
+import { CheckoutResponse, PaymentMethod, PublicView } from '../../core/api/models';
+import { AuthService } from '../../core/auth/auth.service';
+import { openCheckout } from '../../core/checkout';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { REFERENCE, SAUDI_MOBILE, normalizeReference, serviceName } from '../../core/masar';
-import { ConfirmService } from '../../core/ui/confirm.service';
+import { REFERENCE, SAUDI_MOBILE, normalizeReference } from '../../core/masar';
 import { FieldErrorComponent } from '../../core/ui/field-error.component';
-import { IconComponent } from '../../core/ui/icon.component';
-import { PromptService } from '../../core/ui/prompt.service';
 import { ToastService } from '../../core/ui/toast.service';
-import { QuoteViewComponent } from '../../shared/quote-view.component';
-import { StatusBadgeComponent } from '../../shared/status-badge.component';
-import { StatusStepperComponent } from '../../shared/status-stepper.component';
+import { CustomerRequestComponent } from '../../shared/customer-request.component';
 
 function pattern(regex: RegExp, rule: string) {
   return (control: AbstractControl): ValidationErrors | null => {
@@ -40,21 +37,19 @@ function pattern(regex: RegExp, rule: string) {
 }
 
 /**
- * Customer tracking: reference + mobile number, then the request's progress, the quote (accept/decline),
- * the booked visit and the history. Both values are required, so a leaked reference alone shows nothing.
- * تتبع العميل: رقم الطلب + رقم الجوال، ثم مراحل الطلب وعرض السعر (قبول/رفض) وموعد الزيارة والسجل.
+ * Guest tracking: reference + mobile number, then the request's progress, the quote (accept/decline), the
+ * payment, the booked visit and the history. Both values are required, so a leaked reference alone shows nothing.
+ * تتبع الزائر: رقم الطلب + رقم الجوال، ثم مراحل الطلب وعرض السعر (قبول/رفض) والدفع وموعد الزيارة والسجل.
  * القيمتين مطلوبة، فرقم الطلب لو تسرّب لحاله ما يعرض شي.
  */
 @Component({
   selector: 'app-track',
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     TranslatePipe,
-    IconComponent,
     FieldErrorComponent,
-    QuoteViewComponent,
-    StatusBadgeComponent,
-    StatusStepperComponent,
+    CustomerRequestComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './track.page.html',
@@ -62,9 +57,8 @@ function pattern(regex: RegExp, rule: string) {
 export class TrackPage implements OnInit {
   private readonly api = inject(ApiService);
   protected readonly i18n = inject(I18nService);
-  protected readonly fmt = inject(FormatService);
-  private readonly confirm = inject(ConfirmService);
-  private readonly prompt = inject(PromptService);
+  protected readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
   // ?ref=MS-… from the booking success screen fills the reference for the customer.
@@ -90,11 +84,6 @@ export class TrackPage implements OnInit {
     // NOT_FOUND ياخذ نص "تأكد من القيمتين" بدل الرسالة العامة.
     return err.code === 'NOT_FOUND' ? this.i18n.t('track.notFound') : errorMessage(this.i18n, err);
   });
-
-  protected readonly reached = computed(() => this.view()?.history.map((h) => h.status) ?? []);
-  protected readonly serviceLabel = computed(() =>
-    serviceName(this.view()?.service, this.i18n.lang()),
-  );
 
   ngOnInit(): void {
     const ref = this.ref();
@@ -125,33 +114,18 @@ export class TrackPage implements OnInit {
     }
   }
 
-  protected async accept(): Promise<void> {
+  protected accept(): void {
     const v = this.view();
-    if (!v?.quote) return;
-    const ok = await this.confirm.ask({
-      title: this.i18n.t('track.accept'),
-      message: this.i18n.t('track.acceptConfirm', { total: this.fmt.money(v.quote.total) }),
-      confirmLabel: this.i18n.t('track.accept'),
-    });
-    if (!ok) return;
+    if (!v) return;
     this.run(
       this.api.post<PublicView>(`/public/requests/${v.reference}/accept`, { phone: this.phone }),
       () => this.toast.success(this.i18n.t('track.accepted')),
     );
   }
 
-  protected async reject(): Promise<void> {
+  protected reject(reason: string): void {
     const v = this.view();
     if (!v) return;
-    const reason = await this.prompt.ask({
-      title: this.i18n.t('track.rejectTitle'),
-      message: this.i18n.t('track.rejectPrompt'),
-      label: this.i18n.t('common.reason'),
-      confirmLabel: this.i18n.t('track.reject'),
-      maxLength: 255,
-      danger: true,
-    });
-    if (reason === null) return;
     this.run(
       this.api.post<PublicView>(`/public/requests/${v.reference}/reject`, {
         phone: this.phone,
@@ -159,6 +133,22 @@ export class TrackPage implements OnInit {
       }),
       () => this.toast.success(this.i18n.t('track.rejected')),
     );
+  }
+
+  protected pay(method: PaymentMethod): void {
+    const v = this.view();
+    if (!v) return;
+    this.busy.set(true);
+    this.apiError.set(null);
+    this.api
+      .post<CheckoutResponse>(`/public/requests/${v.reference}/pay`, { phone: this.phone, method })
+      .subscribe({
+        next: (checkout) => openCheckout(this.router, checkout),
+        error: (err) => {
+          this.busy.set(false);
+          this.apiError.set(toApiError(err));
+        },
+      });
   }
 
   protected reset(): void {

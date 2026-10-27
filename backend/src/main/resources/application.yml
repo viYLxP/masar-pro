@@ -50,12 +50,37 @@ masar:
     enabled: ${SEED_DEMO_DATA:true}
     admin-password: ${ADMIN_PASSWORD:Admin@12345}
     staff-password: ${STAFF_PASSWORD:Staff@12345}
+    customer-password: ${CUSTOMER_PASSWORD:Customer@12345}
   # Limits for the public (no login) endpoints, per visitor IP, to stop spam bookings and phone guessing.
   # حدود الروابط العامة (بدون دخول) لكل عنوان IP، لمنع الحجوزات المزعجة وتخمين أرقام الجوال.
   rate-limit:
     window: 10m
     bookings: ${RATE_LIMIT_BOOKINGS:5}
     lookups: ${RATE_LIMIT_LOOKUPS:30}
+  # Card and Apple Pay go to CARD_PAYMENT_PROVIDER: SANDBOX works with no gateway account (test cards on our own page);
+  # MOYASAR or STRIPE need their secret key. Tabby and Tamara use their real API when a key is set, else the sandbox.
+  # البطاقة وApple Pay يروحون لـ CARD_PAYMENT_PROVIDER: SANDBOX يشتغل بدون حساب بوابة (بطاقات تجريبية على صفحتنا)؛
+  # وMOYASAR أو STRIPE يحتاجون المفتاح السري. وتابي وتمارا يستخدمون الـ API الحقيقي لو فيه مفتاح، وإلا الوضع التجريبي.
+  payments:
+    card-provider: ${CARD_PAYMENT_PROVIDER:SANDBOX}
+    public-url: ${PUBLIC_URL:http://localhost:4200}
+    moyasar:
+      api-url: ${MOYASAR_API_URL:https://api.moyasar.com/v1}
+      secret-key: ${MOYASAR_SECRET_KEY:}
+    stripe:
+      api-url: ${STRIPE_API_URL:https://api.stripe.com}
+      secret-key: ${STRIPE_SECRET_KEY:}
+    tabby:
+      api-url: ${TABBY_API_URL:https://api.tabby.sa}
+      secret-key: ${TABBY_SECRET_KEY:}
+      merchant-code: ${TABBY_MERCHANT_CODE:}
+    tamara:
+      api-url: ${TAMARA_API_URL:https://api-sandbox.tamara.co}
+      api-token: ${TAMARA_API_TOKEN:}
+    instalments:
+      min-amount: ${INSTALMENTS_MIN:100}
+      max-amount: ${INSTALMENTS_MAX:5000}
+      count: 4
 
 management:
   endpoints:

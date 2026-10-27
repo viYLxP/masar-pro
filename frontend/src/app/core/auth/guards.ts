@@ -7,16 +7,6 @@ import { AuthService } from './auth.service';
 // الحراس يخفون الصفحات في الواجهة فقط؛ والحماية الحقيقية هي فحص الدور في الخادم على كل رابط.
 
 /**
- * Lets the route open only for a logged-in user; otherwise redirects to /login.
- * يسمح بفتح الصفحة للمستخدم المسجّل فقط، وإلا يحوّله لصفحة الدخول.
- */
-export const authGuard: CanActivateFn = async () => {
-  const auth = inject(AuthService);
-  const router = inject(Router);
-  return (await auth.restore()) ? true : router.createUrlTree(['/login']);
-};
-
-/**
  * Builds a guard that allows one group of roles and sends everyone else to their own home page.
  * يبني حارس يسمح لمجموعة أدوار، ويرجّع الباقين لصفحتهم الرئيسية.
  */
@@ -29,6 +19,9 @@ function roleGuard(allowed: (auth: AuthService) => boolean): CanActivateFn {
   };
 }
 
+// The staff app (/app) is for staff only; a signed-in customer is sent to their account.
+// تطبيق الموظفين (‎/app) للموظفين بس؛ والعميل المسجّل يرجع لحسابه.
+export const staffGuard = roleGuard((auth) => !auth.isCustomer());
 export const adminGuard = roleGuard((auth) => auth.isAdmin());
 export const officeGuard = roleGuard((auth) => auth.isOffice());
 export const technicianGuard = roleGuard((auth) => auth.isTechnician());
@@ -51,4 +44,17 @@ export const guestGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
   return (await auth.restore()) ? router.parseUrl(auth.home()) : true;
+};
+
+/**
+ * Customer pages (/account): a guest is asked to sign in and comes back to the same page afterwards.
+ * صفحات العميل (‎/account): الزائر ينطلب منه يسجّل دخول ويرجع لنفس الصفحة بعدها.
+ */
+export const customerGuard: CanActivateFn = async (_route, state) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  if (!(await auth.restore())) {
+    return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
+  }
+  return auth.isCustomer() ? true : router.parseUrl(auth.home());
 };

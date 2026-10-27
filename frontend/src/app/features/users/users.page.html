@@ -25,76 +25,151 @@
 } @else if (users.isLoading() && !users.hasValue()) {
   <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
 } @else {
-  <div class="table-wrap">
-    <table data-testid="users-table">
-      <thead>
-        <tr>
-          <th scope="col">{{ 'users.fullName' | t }}</th>
-          <th scope="col">{{ 'users.username' | t }}</th>
-          <th scope="col">{{ 'users.role' | t }}</th>
-          <th scope="col">{{ 'users.phone' | t }}</th>
-          <th scope="col">{{ 'users.skills' | t }}</th>
-          <th scope="col">{{ 'common.status' | t }}</th>
-          <th scope="col">{{ 'common.date' | t }}</th>
-          <th scope="col" class="cell-end">
-            <span class="visually-hidden">{{ 'common.actions' | t }}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (u of users.value() ?? []; track u.id) {
+  <div class="segmented tabs" role="tablist" [attr.aria-label]="'users.title' | t">
+    <button
+      type="button"
+      role="tab"
+      class="segmented__item"
+      [class.segmented__item--on]="tab() === 'staff'"
+      [attr.aria-selected]="tab() === 'staff'"
+      (click)="tab.set('staff')"
+    >
+      {{ 'users.tabStaff' | t }} ({{ fmt.number(staff().length) }})
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="segmented__item"
+      [class.segmented__item--on]="tab() === 'customers'"
+      [attr.aria-selected]="tab() === 'customers'"
+      (click)="tab.set('customers')"
+      data-testid="tab-customers"
+    >
+      {{ 'users.tabCustomers' | t }} ({{ fmt.number(customers().length) }})
+    </button>
+  </div>
+  @if (tab() === 'customers') {
+    <p class="hint">{{ 'users.customersHint' | t }}</p>
+    <div class="table-wrap">
+      <table data-testid="customers-table">
+        <thead>
           <tr>
-            <td>
-              <bdi>{{ u.fullName }}</bdi>
-              @if (isSelf(u)) {
-                <span class="badge badge--info">{{ 'users.you' | t }}</span>
-              }
-            </td>
-            <td class="mono" dir="ltr">{{ u.username }}</td>
-            <td>
-              {{ 'roles.' + u.role | t }}
-              @if (u.city) {
-                <div class="list__sub">{{ 'city.' + u.city | t }}</div>
-              }
-            </td>
-            <td dir="ltr" class="cell-ltr">{{ u.phone ? phone(u.phone) : '—' }}</td>
-            <td class="wrap">
-              @for (skill of u.skills; track skill.id) {
-                <span class="badge badge--muted">{{ skillName(skill) }}</span>
-              } @empty {
-                <span class="muted">—</span>
-              }
-            </td>
-            <td>
-              <span class="badge" [class.badge--DONE]="u.active">{{
-                (u.active ? 'users.active' : 'users.inactive') | t
-              }}</span>
-            </td>
-            <td>{{ fmt.date(u.createdAt) }}</td>
-            <td>
-              <div class="row-actions">
+            <th scope="col">{{ 'users.fullName' | t }}</th>
+            <th scope="col">{{ 'users.phone' | t }}</th>
+            <th scope="col">{{ 'common.email' | t }}</th>
+            <th scope="col">{{ 'common.status' | t }}</th>
+            <th scope="col">{{ 'users.signedUp' | t }}</th>
+            <th scope="col" class="cell-end">
+              <span class="visually-hidden">{{ 'common.actions' | t }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of customers(); track u.id) {
+            <tr>
+              <td>
+                <bdi>{{ u.fullName }}</bdi>
+              </td>
+              <td dir="ltr" class="cell-ltr">{{ phone(u.phone) }}</td>
+              <td dir="ltr" class="cell-ltr">{{ u.email ?? '—' }}</td>
+              <td>
+                <span class="badge" [class.badge--success]="u.active">{{
+                  (u.active ? 'users.active' : 'users.inactive') | t
+                }}</span>
+              </td>
+              <td>{{ fmt.date(u.createdAt) }}</td>
+              <td class="cell-end">
                 <button
                   type="button"
-                  class="icon-btn"
-                  (click)="open('edit', u)"
-                  [attr.aria-label]="('users.edit' | t) + ' ' + u.username"
+                  class="btn btn--small"
+                  [class.btn--danger]="u.active"
+                  (click)="toggleCustomer(u)"
+                  [attr.data-testid]="'toggle-' + u.username"
                 >
-                  <app-icon name="edit" />
+                  {{ (u.active ? 'users.disable' : 'users.enable') | t }}
                 </button>
-                <button type="button" class="btn btn--small" (click)="open('password', u)">
-                  {{ 'users.resetPassword' | t }}
-                </button>
-              </div>
-            </td>
-          </tr>
-        } @empty {
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="empty-state">{{ 'common.empty' | t }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <div class="table-wrap">
+      <table data-testid="users-table">
+        <thead>
           <tr>
-            <td colspan="8" class="empty-state">{{ 'common.empty' | t }}</td>
+            <th scope="col">{{ 'users.fullName' | t }}</th>
+            <th scope="col">{{ 'users.username' | t }}</th>
+            <th scope="col">{{ 'users.role' | t }}</th>
+            <th scope="col">{{ 'users.phone' | t }}</th>
+            <th scope="col">{{ 'users.skills' | t }}</th>
+            <th scope="col">{{ 'common.status' | t }}</th>
+            <th scope="col">{{ 'common.date' | t }}</th>
+            <th scope="col" class="cell-end">
+              <span class="visually-hidden">{{ 'common.actions' | t }}</span>
+            </th>
           </tr>
-        }
-      </tbody>
-    </table>
-  </div>
+        </thead>
+        <tbody>
+          @for (u of staff(); track u.id) {
+            <tr>
+              <td>
+                <bdi>{{ u.fullName }}</bdi>
+                @if (isSelf(u)) {
+                  <span class="badge badge--info">{{ 'users.you' | t }}</span>
+                }
+              </td>
+              <td class="mono" dir="ltr">{{ u.username }}</td>
+              <td>
+                {{ 'roles.' + u.role | t }}
+                @if (u.city) {
+                  <div class="list__sub">{{ 'city.' + u.city | t }}</div>
+                }
+              </td>
+              <td dir="ltr" class="cell-ltr">{{ u.phone ? phone(u.phone) : '—' }}</td>
+              <td class="wrap">
+                @for (skill of u.skills; track skill.id) {
+                  <span class="badge badge--muted">{{ skillName(skill) }}</span>
+                } @empty {
+                  <span class="muted">—</span>
+                }
+              </td>
+              <td>
+                <span class="badge" [class.badge--success]="u.active">{{
+                  (u.active ? 'users.active' : 'users.inactive') | t
+                }}</span>
+              </td>
+              <td>{{ fmt.date(u.createdAt) }}</td>
+              <td>
+                <div class="row-actions">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="open('edit', u)"
+                    [attr.aria-label]="('users.edit' | t) + ' ' + u.username"
+                  >
+                    <app-icon name="edit" />
+                  </button>
+                  <button type="button" class="btn btn--small" (click)="open('password', u)">
+                    {{ 'users.resetPassword' | t }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="8" class="empty-state">{{ 'common.empty' | t }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
 }
 
 <dialog #dialog class="dialog" aria-labelledby="user-dialog-title">

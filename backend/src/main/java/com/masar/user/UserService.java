@@ -72,6 +72,10 @@ public class UserService {
     public UserResponse create(CreateUserRequest request) {
         // Check first to return a clear error code instead of a raw database constraint error.
         // نتحقق أولًا حتى نرجّع رمز خطأ واضح بدل خطأ قيد قاعدة البيانات.
+        // Customers sign up themselves; the admin creates staff only. / العملاء يسجلون بنفسهم؛ والمدير ينشئ موظفين بس.
+        if (request.role() == Role.CUSTOMER) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("role", "Staff")));
+        }
         if (users.existsByUsernameIgnoreCase(request.username())) {
             throw new ApiException(ErrorCode.USERNAME_EXISTS);
         }
@@ -89,6 +93,17 @@ public class UserService {
         boolean isSelf = user.getUsername().equalsIgnoreCase(CurrentUser.username());
         if (isSelf && (!request.active() || request.role() != user.getRole())) {
             throw new ApiException(ErrorCode.CANNOT_MODIFY_SELF);
+        }
+        // A customer stays a customer and staff stay staff: the two kinds of account are never swapped.
+        // العميل يبقى عميل والموظف يبقى موظف: نوعين الحسابات ما يتبادلون أبدًا.
+        if ((user.getRole() == Role.CUSTOMER) != (request.role() == Role.CUSTOMER)) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("role", "Staff")));
+        }
+        if (user.getRole() == Role.CUSTOMER) {
+            // For customers the admin only switches the account on or off; their profile is theirs.
+            // للعملاء المدير بس يشغّل أو يوقف الحساب؛ وملفهم الشخصي حقهم.
+            user.setActive(request.active());
+            return UserResponse.from(user);
         }
         user.setFullName(request.fullName().trim());
         user.setRole(request.role());

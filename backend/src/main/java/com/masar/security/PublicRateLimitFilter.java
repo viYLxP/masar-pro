@@ -28,6 +28,10 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
 
     private static final String BOOK_PATH = "/api/public/requests";
     private static final String LOOKUP_PREFIX = "/api/public/requests/";
+    // Sign-ups count as bookings (both create records); card attempts count as lookups (guessing card numbers).
+    // التسجيل ينحسب مع الحجوزات (الاثنين ينشئون سجلات)؛ ومحاولات البطاقة تنحسب مع البحث (تخمين أرقام البطاقات).
+    private static final String REGISTER_PATH = "/api/auth/register";
+    private static final String PAYMENTS_PREFIX = "/api/public/payments/";
 
     private final RateLimiter bookings;
     private final RateLimiter lookups;
@@ -40,15 +44,16 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
         return !HttpMethod.POST.matches(request.getMethod())
-                || !request.getRequestURI().startsWith(BOOK_PATH);
+                || !(path.startsWith(BOOK_PATH) || path.equals(REGISTER_PATH) || path.startsWith(PAYMENTS_PREFIX));
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String path = request.getRequestURI();
-        RateLimiter limiter = path.startsWith(LOOKUP_PREFIX) ? lookups : bookings;
+        RateLimiter limiter = path.startsWith(LOOKUP_PREFIX) || path.startsWith(PAYMENTS_PREFIX) ? lookups : bookings;
         long retryAfter = limiter.hit(request.getRemoteAddr());
         if (retryAfter > 0) {
             response.setStatus(429);

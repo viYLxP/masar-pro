@@ -30,7 +30,8 @@ public record AppProperties(
         // المنطقة الزمنية للنشاط وتُستخدم لتحديد "اليوم" و"هذا الشهر" وساعات العمل وانتهاء عروض الأسعار (الرياض افتراضيًا).
         @NotNull ZoneId timeZone,
         @Valid @NotNull Seed seed,
-        @Valid @NotNull RateLimit rateLimit) {
+        @Valid @NotNull RateLimit rateLimit,
+        @Valid @NotNull Payments payments) {
 
     /**
      * JWT signing settings.
@@ -54,7 +55,7 @@ public record AppProperties(
      * Demo data settings. Passwords come from environment variables, never hard-coded in production.
      * إعدادات البيانات التجريبية. كلمات المرور تأتي من متغيرات البيئة ولا تُكتب في الكود للإنتاج.
      */
-    public record Seed(boolean enabled, String adminPassword, String staffPassword) {
+    public record Seed(boolean enabled, String adminPassword, String staffPassword, String customerPassword) {
     }
 
     /**
@@ -66,5 +67,44 @@ public record AppProperties(
      * @param lookups  tracking, accept and reject calls allowed per window / عدد عمليات التتبع والقبول والرفض المسموحة
      */
     public record RateLimit(@NotNull Duration window, @Min(1) int bookings, @Min(1) int lookups) {
+    }
+
+    /**
+     * Online payments.
+     * الدفع أونلاين.
+     *
+     * @param cardProvider who takes card and Apple Pay payments: SANDBOX (built-in test checkout, no account needed),
+     *                     MOYASAR or STRIPE / مين ياخذ دفع البطاقات وApple Pay: SANDBOX (صفحة تجريبية مدمجة، ما تحتاج
+     *                     حساب) أو MOYASAR أو STRIPE
+     * @param publicUrl    the address customers open the site on; gateways send them back to it after paying
+     *                     / عنوان الموقع اللي يفتحه العملاء؛ البوابات ترجّعهم له بعد الدفع
+     * @param instalments  limits for Tabby and Tamara / حدود تابي وتمارا
+     */
+    public record Payments(@NotNull com.masar.payment.Payment.Provider cardProvider, @NotNull String publicUrl,
+                           @Valid @NotNull Moyasar moyasar, @Valid @NotNull Stripe stripe,
+                           @Valid @NotNull Tabby tabby, @Valid @NotNull Tamara tamara,
+                           @Valid @NotNull Instalments instalments) {
+    }
+
+    // Keys are read only when set; without a key the gateway is simply not used. / المفاتيح تنقرأ بس لو موجودة.
+    public record Moyasar(@NotNull String apiUrl, String secretKey) {
+    }
+
+    public record Stripe(@NotNull String apiUrl, String secretKey) {
+    }
+
+    // merchantCode is given by Tabby with the keys. / merchantCode تعطيك إياه تابي مع المفاتيح.
+    public record Tabby(@NotNull String apiUrl, String secretKey, String merchantCode) {
+    }
+
+    public record Tamara(@NotNull String apiUrl, String apiToken) {
+    }
+
+    /**
+     * Instalment plans. The real limits come from the contract with Tabby/Tamara; these defaults are only a start.
+     * خطط التقسيط. الحدود الحقيقية تجي من العقد مع تابي وتمارا؛ وهذي القيم الافتراضية بداية بس.
+     */
+    public record Instalments(@NotNull java.math.BigDecimal minAmount, @NotNull java.math.BigDecimal maxAmount,
+                              @Min(2) int count) {
     }
 }

@@ -26,7 +26,11 @@ import com.masar.catalog.ServiceType;
 import com.masar.catalog.ServiceTypeRepository;
 import com.masar.common.BusinessTime;
 import com.masar.common.City;
+import com.masar.payment.Payment;
+import com.masar.payment.PaymentRepository;
 import com.masar.request.BookingService;
+import com.masar.request.PaymentStatus;
+import com.masar.request.RequestEvent;
 import com.masar.request.PropertyType;
 import com.masar.request.RequestDtos.BookingRequest;
 import com.masar.request.RequestDtos.QuoteLineRequest;
@@ -70,13 +74,16 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final BusinessTime time;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
+    private final PaymentRepository paymentRepository;
 
     private LocalDate today;
 
     public DemoDataSeeder(AppProperties properties, AppUserRepository users, ServiceTypeRepository serviceTypes,
                           PasswordEncoder passwordEncoder, BookingService bookings, RequestService requests,
                           SchedulingService scheduling, ServiceRequestRepository requestRepository,
-                          BusinessTime time, JdbcTemplate jdbc, TransactionTemplate tx) {
+                          BusinessTime time, JdbcTemplate jdbc, TransactionTemplate tx,
+                          PaymentRepository paymentRepository) {
+        this.paymentRepository = paymentRepository;
         this.properties = properties;
         this.users = users;
         this.serviceTypes = serviceTypes;
@@ -98,8 +105,8 @@ public class DemoDataSeeder implements ApplicationRunner {
         // One transaction for the whole seed: either all demo data is created, or none.
         // معاملة وحدة لكل البيانات: يا تنضاف كلها يا ولا شي.
         tx.executeWithoutResult(status -> seed());
-        log.info("Demo data created. Log in as 'admin', 'noura' (dispatcher) or 'fahad' (technician); "
-                + "passwords from ADMIN_PASSWORD / STAFF_PASSWORD.");
+        log.info("Demo data created. Log in as 'admin', 'noura' (dispatcher), 'fahad' (technician) or the customer "
+                + "0553001010; passwords from ADMIN_PASSWORD / STAFF_PASSWORD / CUSTOMER_PASSWORD.");
     }
 
     private void seed() {
@@ -151,15 +158,16 @@ public class DemoDataSeeder implements ApplicationRunner {
         ServiceRequest hind = book("Hind Al-Rashid", "0553001001", City.RIYADH, "Al Aqiq", PropertyType.VILLA, ac,
                 3, TimeSlot.MORNING, "Two split units in the majlis are noisy.");
         quoteAndAccept(hind, line("Split AC deep clean", 2, "150.00"), line("Refrigerant top-up", 1, "180.00"));
-        finish(hind, fahad, 3, LocalTime.of(9, 0), "Both units cleaned, one needed refrigerant. Working well.");
+        finishPaidCash(hind, fahad, 3, LocalTime.of(9, 0), "Both units cleaned, one needed refrigerant. Working well.");
         ServiceRequest sultan = book("سلطان المطيري", "0553001002", City.JEDDAH, "الشاطئ", PropertyType.APARTMENT, ac,
                 4, TimeSlot.AFTERNOON, "المكيف ما يبرد زين.");
         quoteAndAccept(sultan, line("تنظيف مكيف سبليت", 3, "140.00"));
+        paidOnline(sultan, "mada", "0003");
         finish(sultan, yousef, 4, LocalTime.of(13, 0), "تم تنظيف 3 وحدات.");
         ServiceRequest faris = book("Faris Al-Otaibi", "0553001003", City.DAMMAM, "Al Faisaliyah", PropertyType.OFFICE,
                 electrical, 5, TimeSlot.MORNING, "Several sockets in the office stopped working.");
         quoteAndAccept(faris, line("Fault finding", 1, "120.00"), line("Replace socket", 4, "45.00"));
-        finish(faris, majed, 5, LocalTime.of(10, 0), "Burnt breaker replaced, 4 sockets renewed.");
+        finishPaidCash(faris, majed, 5, LocalTime.of(10, 0), "Burnt breaker replaced, 4 sockets renewed.");
 
         // ----- Open requests in every status / طلبات مفتوحة بكل الحالات -----
         book("عبدالله السبيعي", "0553001004", City.RIYADH, "الملقا", PropertyType.VILLA, ac, 1, TimeSlot.MORNING,
@@ -190,6 +198,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         ServiceRequest reem = book("ريم القحطاني", "0553001010", City.RIYADH, "الصحافة", PropertyType.APARTMENT, ac, 1,
                 TimeSlot.MORNING, "تنظيف مكيفين قبل الشتاء.");
         quoteAndAccept(reem, line("تنظيف مكيف سبليت", 2, "150.00"));
+        paidOnline(reem, "visa", "1111");
         schedule(reem, fahad, 1, LocalTime.of(9, 0));
         ServiceRequest mohammed = book("Mohammed Al-Ghamdi", "0553001011", City.RIYADH, "Al Wurud", PropertyType.VILLA,
                 cleaning, 2, TimeSlot.AFTERNOON, "Deep clean before guests arrive.");
@@ -216,6 +225,21 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         requestRepository.flush();
 
+        // ----- Customer accounts / حسابات العملاء -----
+        // Reem has an account with two requests (one paid online, one waiting for her answer); Hind has one
+        // finished job. Everyone else booked as a guest.
+        // ريم عندها حساب فيه طلبين (واحد مدفوع أونلاين، وواحد ينتظر ردها)؛ وهند عندها شغل خلص. والباقين حجزوا كزوار.
+        String customerPassword = passwordEncoder.encode(properties.seed().customerPassword());
+        AppUser reemAccount = customer("ريم القحطاني", "966553001010", "reem@example.com", customerPassword);
+        AppUser hindAccount = customer("Hind Al-Rashid", "966553001001", "hind@example.com", customerPassword);
+        link(reem, reemAccount);
+        link(hind, hindAccount);
+        ServiceRequest reemCleaning = book("ريم القحطاني", "0553001010", City.RIYADH, "الصحافة", PropertyType.APARTMENT,
+                cleaning, 5, TimeSlot.MORNING, "تنظيف شقة بعد الترميم.");
+        saveQuote(reemCleaning, 7, line("تنظيف شقة 3 غرف بعد ترميم", 1, "650.00"));
+        requests.sendQuote(reemCleaning.getId(), version(reemCleaning));
+        link(reemCleaning, reemAccount);
+
         // ----- Move timestamps into the past / إرجاع التواريخ للماضي -----
         retime(hind, ago(9, 10, 20), ago(9, 14, 5), ago(8, 11, 30), ago(8, 12, 0), ago(3, 9, 5), ago(3, 10, 40));
         retime(sultan, ago(12, 18, 0), ago(11, 9, 30), ago(11, 20, 15), ago(10, 9, 0), ago(6, 13, 10), ago(6, 15, 0));
@@ -224,6 +248,26 @@ public class DemoDataSeeder implements ApplicationRunner {
         retime(laila, ago(5, 11, 0), ago(4, 12, 30), ago(3, 18, 20));
         retime(turki, ago(4, 15, 0), ago(2, 11, 45));
         alignJobTimes();
+        alignPaymentTimes();
+    }
+
+    /**
+     * Payments were written "now"; move them to when they would really have happened: cash at the end of the
+     * visit, card a few minutes after the customer accepted the quote (never in the future).
+     * المدفوعات انكتبت "الحين"؛ ننقلها لوقتها الحقيقي: الكاش في نهاية الزيارة، والبطاقة بعد دقايق من موافقة العميل
+     * (وأبدًا مو في المستقبل).
+     */
+    private void alignPaymentTimes() {
+        jdbc.update("""
+                update payment p set created_at = r.completed_at, paid_at = r.completed_at
+                from service_request r where r.id = p.request_id and p.method = 'CASH'
+                """);
+        jdbc.update("""
+                update payment p set created_at = least(e.created_at + interval '6 minutes', now()),
+                                     paid_at = least(e.created_at + interval '8 minutes', now())
+                from request_event e
+                where e.request_id = p.request_id and e.to_status = 'ACCEPTED' and p.method = 'CARD'
+                """);
     }
 
     // ----- Building blocks / أدوات البناء -----
@@ -276,7 +320,41 @@ public class DemoDataSeeder implements ApplicationRunner {
     private void finish(ServiceRequest r, AppUser technician, int daysAhead, LocalTime start, String note) {
         schedule(r, technician, daysAhead, start);
         scheduling.start(r.getId(), version(r));
-        scheduling.complete(r.getId(), note, version(r));
+        scheduling.complete(r.getId(), note, false, version(r));
+    }
+
+    // A finished job the customer paid the technician for in cash. / شغل خلص والعميل دفع للفني كاش.
+    private void finishPaidCash(ServiceRequest r, AppUser technician, int daysAhead, LocalTime start, String note) {
+        schedule(r, technician, daysAhead, start);
+        scheduling.start(r.getId(), version(r));
+        scheduling.complete(r.getId(), note, true, version(r));
+    }
+
+    /**
+     * A card payment made on the sandbox checkout. Written directly (not through the gateway), so seeding never
+     * calls a real gateway even when MOYASAR is configured.
+     * دفعة بطاقة من صفحة الدفع التجريبية. تنكتب مباشرة (مو عن طريق البوابة)، حتى الزرع ما يتصل ببوابة حقيقية
+     * أبدًا حتى لو كانت MOYASAR مفعّلة.
+     */
+    private void paidOnline(ServiceRequest r, String brand, String last4) {
+        ServiceRequest fresh = requestRepository.findById(r.getId()).orElseThrow();
+        Payment payment = new Payment(fresh, Payment.Method.CARD, Payment.Provider.SANDBOX,
+                fresh.getQuote().getTotal(), RequestEvent.CUSTOMER, time.now());
+        payment.setProviderRef("sbx_" + payment.getId());
+        payment.markPaid(time.now(), brand, last4);
+        fresh.setPaymentStatus(PaymentStatus.PAID);
+        paymentRepository.save(payment);
+    }
+
+    private AppUser customer(String name, String phone, String email, String passwordHash) {
+        AppUser u = new AppUser(phone, name, passwordHash, Role.CUSTOMER);
+        u.setPhone(phone);
+        u.setEmail(email);
+        return users.save(u);
+    }
+
+    private void link(ServiceRequest r, AppUser customer) {
+        jdbc.update("update service_request set customer_id = ? where id = ?", customer.getId(), r.getId());
     }
 
     private static QuoteLineRequest line(String description, int quantity, String price) {

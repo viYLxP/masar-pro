@@ -58,6 +58,7 @@ public abstract class IntegrationTest {
 
     protected static final String ADMIN_PASSWORD = "Admin@12345";
     protected static final String STAFF_PASSWORD = "Staff@12345";
+    protected static final String CUSTOMER_PASSWORD = "Customer@123";
 
     @Autowired
     protected MockMvc mvc;
@@ -147,6 +148,23 @@ public abstract class IntegrationTest {
 
     protected String technicianToken(String username) throws Exception {
         return login(username, STAFF_PASSWORD);
+    }
+
+    /**
+     * Signs up a customer through the real endpoint and returns their token.
+     * يسجّل عميل عبر الرابط الحقيقي ويرجّع رمز دخوله.
+     */
+    protected String registerCustomer(String name, String phone) throws Exception {
+        String body = mvc.perform(json(post("/api/auth/register")).content("""
+                        {"fullName":"%s","phone":"%s","email":"c@example.com","password":"%s"}
+                        """.formatted(name, phone, CUSTOMER_PASSWORD)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(body, "$.token");
+    }
+
+    protected String paymentStatusOf(long requestId) {
+        return jdbc.queryForObject("select payment_status from service_request where id = ?", String.class, requestId);
     }
 
     protected long userId(String username) {

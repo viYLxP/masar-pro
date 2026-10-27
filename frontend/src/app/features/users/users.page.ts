@@ -54,6 +54,14 @@ export class UsersPage {
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   protected readonly users = rxResource({ stream: () => this.api.get<User[]>('/users') });
+  // Staff and customers come from the same list; the tabs split it. / الموظفون والعملاء من نفس القائمة؛ والتبويبات تقسمها.
+  protected readonly tab = signal<'staff' | 'customers'>('staff');
+  protected readonly staff = computed(() =>
+    (this.users.value() ?? []).filter((u) => u.role !== 'CUSTOMER'),
+  );
+  protected readonly customers = computed(() =>
+    (this.users.value() ?? []).filter((u) => u.role === 'CUSTOMER'),
+  );
   protected readonly services = rxResource({
     stream: () => this.api.get<ServiceType[]>('/services'),
   });
@@ -176,6 +184,23 @@ export class UsersPage {
 
   protected close(): void {
     this.dialog().nativeElement.close();
+  }
+
+  /**
+   * Customers' details are their own; the admin can only switch the account off or on.
+   * بيانات العميل ملكه؛ والمدير يقدر بس يوقف الحساب أو يشغّله.
+   */
+  protected toggleCustomer(user: User): void {
+    const active = !user.active;
+    this.api
+      .put<User>(`/users/${user.id}`, { fullName: user.fullName, role: 'CUSTOMER', active })
+      .subscribe({
+        next: () => {
+          this.toast.success(this.i18n.t(active ? 'users.enabled' : 'users.disabled'));
+          this.users.reload();
+        },
+        error: (err) => this.toast.error(errorMessage(this.i18n, toApiError(err))),
+      });
   }
 
   protected submit(): void {

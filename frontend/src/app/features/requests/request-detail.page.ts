@@ -14,7 +14,7 @@ import { Observable } from 'rxjs';
 
 import { errorMessage, toApiError } from '../../core/api/api-error';
 import { ApiService } from '../../core/api/api.service';
-import { RequestDetail } from '../../core/api/models';
+import { PaymentView, RequestDetail } from '../../core/api/models';
 import { AuthService } from '../../core/auth/auth.service';
 import { FormatService } from '../../core/i18n/format.service';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -24,6 +24,7 @@ import { ConfirmService } from '../../core/ui/confirm.service';
 import { IconComponent } from '../../core/ui/icon.component';
 import { PromptService } from '../../core/ui/prompt.service';
 import { ToastService } from '../../core/ui/toast.service';
+import { PaymentBadgeComponent } from '../../shared/payment-badge.component';
 import { QuoteViewComponent } from '../../shared/quote-view.component';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
 import { StatusStepperComponent } from '../../shared/status-stepper.component';
@@ -46,6 +47,7 @@ import { ScheduleDialogComponent } from './schedule-dialog.component';
     IconComponent,
     StatusBadgeComponent,
     StatusStepperComponent,
+    PaymentBadgeComponent,
     QuoteViewComponent,
     QuoteEditorComponent,
     ScheduleDialogComponent,
@@ -78,6 +80,7 @@ export class RequestDetailPage {
   protected readonly editingQuote = signal(false);
   protected readonly busy = signal(false);
   protected readonly completeNote = signal('');
+  protected readonly cashCollected = signal(false);
 
   protected readonly serviceLabel = computed(() =>
     serviceName(this.request.value()?.service, this.i18n.lang()),
@@ -150,9 +153,52 @@ export class RequestDetailPage {
   protected complete(r: RequestDetail): void {
     this.act(
       `/requests/${r.id}/complete`,
-      { note: this.completeNote().trim() || null, version: r.version },
+      {
+        note: this.completeNote().trim() || null,
+        cashCollected: this.cashCollected() && this.canTakeCash(r),
+        version: r.version,
+      },
       'requests.completed',
     );
+  }
+
+  // Same rule as PaymentService.recordCash: once scheduled, unpaid, with a quote to collect.
+  // نفس قاعدة PaymentService.recordCash: بعد الجدولة، غير مدفوع، وفيه عرض سعر نحصّله.
+  protected canTakeCash(r: RequestDetail): boolean {
+    return (
+      ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].includes(r.status) &&
+      r.paymentStatus === 'UNPAID' &&
+      !!r.quote &&
+      r.quote.total > 0
+    );
+  }
+
+  protected async recordCash(r: RequestDetail): Promise<void> {
+    const ok = await this.confirm.ask({
+      title: this.i18n.t('payment.recordCash'),
+      message: this.i18n.t('payment.recordCashConfirm', {
+        amount: this.fmt.money(r.quote?.total),
+        reference: r.reference,
+      }),
+      confirmLabel: this.i18n.t('payment.recordCash'),
+    });
+    if (ok) {
+      this.act(`/requests/${r.id}/payments/cash`, { version: r.version }, 'payment.cashRecorded');
+    }
+  }
+
+  // Known reasons are translated; a gateway's own code is shown as it came. / الأسباب المعروفة تتترجم؛ ورمز البوابة يظهر كما هو.
+  protected reasonText(p: PaymentView): string | null {
+    if (!p.failureReason) return null;
+    const key = `payment.reason.${p.failureReason}`;
+    const text = this.i18n.t(key);
+    return text === key ? p.failureReason : text;
+  }
+
+  // "mada ••0003", or who recorded a cash payment. / "مدى ••0003"، أو مين سجّل الدفعة النقدية.
+  protected paymentDetail(p: PaymentView): string {
+    if (p.cardLast4) return `${p.cardBrand ?? ''} ••${p.cardLast4}`;
+    return p.method === 'CASH' ? this.i18n.t('payment.by', { name: p.recordedBy }) : '';
   }
 
   private act(path: string, body: unknown, message: string): void {
@@ -162,6 +208,7 @@ export class RequestDetailPage {
       next: (detail) => {
         this.busy.set(false);
         this.completeNote.set('');
+        this.cashCollected.set(false);
         this.update(detail, message);
       },
       error: (err) => {

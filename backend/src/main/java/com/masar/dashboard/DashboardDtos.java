@@ -31,11 +31,15 @@ public final class DashboardDtos {
      * @param statusCounts     how many requests are in each status right now / عدد الطلبات في كل حالة الحين
      * @param revenueThisMonth sum of completed jobs' quote totals this month (incl. VAT) / مجموع أعمال الشهر المكتملة (شامل الضريبة)
      * @param completedThisMonth number of jobs completed this month / عدد الأعمال المكتملة هذا الشهر
+     * @param collectedThisMonth money actually received this month, online and cash, minus refunds
+     *                           / الفلوس اللي وصلت فعلًا هذا الشهر، أونلاين وكاش، بدون المسترجع
+     * @param unpaidCompleted  finished jobs nobody has paid for yet (to follow up) / أعمال خلصت وما أحد دفعها (للمتابعة)
      * @param acceptanceRate   % of answered quotes that were accepted in the last 90 days; null when none were answered
      *                         / نسبة العروض المقبولة من اللي انرد عليها آخر 90 يوم؛ null لو ما انرد على أي عرض
      */
     public record DashboardResponse(Map<RequestStatus, Long> statusCounts, BigDecimal revenueThisMonth,
-                                    long completedThisMonth, Integer acceptanceRate, List<JobSlot> today,
+                                    long completedThisMonth, BigDecimal collectedThisMonth, long unpaidCompleted,
+                                    Integer acceptanceRate, List<JobSlot> today,
                                     List<RequestRow> waitingForQuote, List<RequestRow> expiringQuotes,
                                     List<ServiceCount> topServices) {
     }

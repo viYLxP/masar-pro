@@ -54,6 +54,10 @@ public class AppUser {
     @Column(length = 12)
     private String phone;
 
+    // Optional contact email (customers). / إيميل تواصل اختياري (للعملاء).
+    @Column(length = 150)
+    private String email;
+
     // Where a technician works; jobs are only offered to technicians of the same city.
     // مدينة شغل الفني؛ الأعمال تنعرض فقط على فنيين نفس المدينة.
     @Enumerated(EnumType.STRING)
@@ -135,6 +139,14 @@ public class AppUser {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public City getCity() {

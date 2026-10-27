@@ -47,6 +47,10 @@ const PATHS: Record<string, string> = {
   arrow: 'M5 12h14M13 6l6 6-6 6',
   eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+  card: 'M2 5h20v14H2zM2 10h20M6 15h4',
+  cash: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 12h.01M18 12h.01',
+  lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
+  split: 'M3 6h18M3 12h12M3 18h6',
 };
 
 /**

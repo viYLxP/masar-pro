@@ -13,9 +13,13 @@ import com.masar.common.BusinessTime;
 import com.masar.common.ErrorCode;
 import com.masar.common.Phones;
 import com.masar.common.Text;
+import com.masar.payment.Payment;
+import com.masar.payment.PaymentDtos.CheckoutResponse;
+import com.masar.payment.PaymentService;
 import com.masar.request.RequestDtos.BookingCreated;
 import com.masar.request.RequestDtos.BookingRequest;
 import com.masar.request.RequestDtos.PublicView;
+import com.masar.user.AppUser;
 
 /**
  * The customer side: booking a visit, tracking it, and answering the quote.
@@ -33,16 +37,18 @@ public class BookingService {
     private final ReferenceGenerator references;
     private final RequestHistory history;
     private final BusinessTime time;
+    private final PaymentService payments;
 
     public BookingService(ServiceRequestRepository requests, RequestEventRepository events,
                           ServiceTypeService services, ReferenceGenerator references, RequestHistory history,
-                          BusinessTime time) {
+                          BusinessTime time, PaymentService payments) {
         this.requests = requests;
         this.events = events;
         this.services = services;
         this.references = references;
         this.history = history;
         this.time = time;
+        this.payments = payments;
     }
 
     /**
@@ -57,7 +63,20 @@ public class BookingService {
         if (!fromOffice && Text.blankToNull(request.website()) != null) {
             return new BookingCreated(references.next(), RequestStatus.NEW);
         }
-        String phone = Phones.require(request.phone(), "phone");
+        return save(request, Phones.require(request.phone(), "phone"), null, fromOffice);
+    }
+
+    /**
+     * A booking by a signed-in customer. The phone is the account's own, whatever the form sent, so a customer
+     * cannot attach a request to someone else's number.
+     * حجز من عميل مسجّل دخول. الجوال هو جوال الحساب مهما أرسل النموذج، حتى العميل ما يقدر يربط طلب برقم غيره.
+     */
+    @Transactional
+    public BookingCreated createForCustomer(BookingRequest request, AppUser customer) {
+        return save(request, customer.getPhone(), customer, false);
+    }
+
+    private BookingCreated save(BookingRequest request, String phone, AppUser customer, boolean fromOffice) {
         ServiceType service = services.find(request.serviceTypeId());
         if (!service.isActive()) {
             throw new ApiException(ErrorCode.SERVICE_INACTIVE);
@@ -75,6 +94,7 @@ public class BookingService {
         entity.setPreferredDate(request.preferredDate());
         entity.setPreferredSlot(request.preferredSlot());
         entity.setDetails(Text.blankToNull(request.details()));
+        entity.setCustomer(customer);
         requests.save(entity);
         if (fromOffice) {
             history.staff(entity, null, null, time.now());
@@ -86,8 +106,17 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public PublicView track(String reference, String phone) {
-        ServiceRequest request = findForCustomer(reference, phone);
-        return PublicView.from(request, events.findByRequestOrderByCreatedAtAscIdAsc(request), time.today());
+        return view(findForCustomer(reference, phone));
+    }
+
+    @Transactional
+    public PublicView accept(String reference, String phone) {
+        return accept(findForCustomer(reference, phone));
+    }
+
+    @Transactional
+    public PublicView reject(String reference, String phone, String reason) {
+        return reject(findForCustomer(reference, phone), reason);
     }
 
     /**
@@ -95,8 +124,7 @@ public class BookingService {
      * العميل يقبل العرض المرسل. مرفوض بعد تاريخ الصلاحية، لأن الأسعار ممكن تغيّرت.
      */
     @Transactional
-    public PublicView accept(String reference, String phone) {
-        ServiceRequest request = findForCustomer(reference, phone);
+    public PublicView accept(ServiceRequest request) {
         request.requireStatus(RequestStatus.QUOTED);
         if (request.getQuote().isExpired(time.today())) {
             throw new ApiException(ErrorCode.QUOTE_EXPIRED);
@@ -104,7 +132,7 @@ public class BookingService {
         RequestStatus from = request.moveTo(RequestStatus.ACCEPTED);
         request.getQuote().setRespondedAt(time.now());
         history.customer(request, from, null, time.now());
-        return PublicView.from(request, events.findByRequestOrderByCreatedAtAscIdAsc(request), time.today());
+        return view(request);
     }
 
     /**
@@ -112,8 +140,7 @@ public class BookingService {
      * العميل يرفض العرض. السبب إلزامي: هو اللي يحتاجه المكتب عشان يعدّل السعر.
      */
     @Transactional
-    public PublicView reject(String reference, String phone, String reason) {
-        ServiceRequest request = findForCustomer(reference, phone);
+    public PublicView reject(ServiceRequest request, String reason) {
         String cleanReason = Text.blankToNull(reason);
         if (cleanReason == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("fields", Map.of("reason", "NotBlank")));
@@ -122,7 +149,22 @@ public class BookingService {
         request.setRejectReason(cleanReason);
         request.getQuote().setRespondedAt(time.now());
         history.customer(request, from, cleanReason, time.now());
-        return PublicView.from(request, events.findByRequestOrderByCreatedAtAscIdAsc(request), time.today());
+        return view(request);
+    }
+
+    /**
+     * Opens online payment for a guest, who proves the request is theirs with the phone, like on the tracking page.
+     * يفتح الدفع أونلاين للزائر، واللي يثبت إن الطلب له بالجوال، مثل صفحة التتبع.
+     */
+    @Transactional
+    public CheckoutResponse pay(String reference, String phone, Payment.Method method) {
+        return payments.startOnline(findForCustomer(reference, phone), method);
+    }
+
+    // The customer's view, with the payment part. / عرض العميل، مع جزء الدفع.
+    public PublicView view(ServiceRequest request) {
+        return PublicView.from(request, events.findByRequestOrderByCreatedAtAscIdAsc(request), time.today(),
+                payments.summary(request));
     }
 
     /**

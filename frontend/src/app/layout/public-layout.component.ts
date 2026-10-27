@@ -65,9 +65,27 @@ import { IconComponent } from '../core/ui/icon.component';
           <a routerLink="/track" routerLinkActive="is-active" ariaCurrentWhenActive="page">{{
             'site.track' | t
           }}</a>
-          <a [routerLink]="auth.token() ? '/app' : '/login'" class="site-nav__staff">
-            <app-icon name="login" [flip]="true" /> {{ 'site.staff' | t }}
-          </a>
+          <!-- Guests sign in or sign up; a customer gets their account; staff get back to their app. -->
+          <!-- الزائر يدخل أو يسجّل؛ والعميل يروح لحسابه؛ والموظف يرجع لتطبيقه. -->
+          @if (auth.isCustomer()) {
+            <a
+              routerLink="/account"
+              routerLinkActive="is-active"
+              ariaCurrentWhenActive="page"
+              data-testid="nav-account"
+            >
+              <app-icon name="user" /> {{ 'site.account' | t }}
+            </a>
+          } @else if (auth.user()) {
+            <a routerLink="/app" class="site-nav__staff">
+              <app-icon name="login" [flip]="true" /> {{ 'site.staff' | t }}
+            </a>
+          } @else {
+            <a routerLink="/login" class="site-nav__staff" data-testid="nav-login">
+              <app-icon name="login" [flip]="true" /> {{ 'site.signIn' | t }}
+            </a>
+            <a routerLink="/register" data-testid="nav-register">{{ 'site.register' | t }}</a>
+          }
           <a class="btn btn--accent" routerLink="/book" data-testid="nav-book">{{
             'site.book' | t
           }}</a>
@@ -103,6 +121,9 @@ export class PublicLayoutComponent {
   protected readonly year = new Date().getFullYear();
 
   constructor() {
+    // After a reload, find out who the saved token belongs to, so the header shows "My account".
+    // بعد إعادة التحميل، نعرف لمين الرمز المحفوظ، حتى الرأس يعرض "حسابي".
+    void this.auth.restore();
     // Close the mobile menu after each navigation. / نقفل قائمة الجوال بعد كل تنقل.
     inject(Router)
       .events.pipe(

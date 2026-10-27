@@ -1,0 +1,121 @@
+<div class="page-narrow">
+  <a class="breadcrumb" routerLink="/account">
+    <app-icon name="chevron" class="icon--back" [flip]="true" /> {{ 'account.back' | t }}
+  </a>
+  <header class="page-header">
+    <div>
+      <h1>{{ 'account.profileTitle' | t }}</h1>
+      <p>{{ 'account.profileSubtitle' | t }}</p>
+    </div>
+    <div class="page-header__actions">
+      <button type="button" class="btn" (click)="auth.logout()" data-testid="account-logout">
+        <app-icon name="logout" [flip]="true" /> {{ 'account.logout' | t }}
+      </button>
+    </div>
+  </header>
+
+  <form class="card" [formGroup]="profile" (ngSubmit)="saveProfile()" novalidate>
+    @if (profileErrorText(); as message) {
+      <div class="alert alert--danger" role="alert">{{ message }}</div>
+    }
+    <div class="form-grid">
+      <div class="field">
+        <label for="p-phone">{{ 'register.phone' | t }}</label>
+        <input id="p-phone" [value]="phone()" dir="ltr" disabled aria-describedby="p-phone-hint" />
+        <p class="hint" id="p-phone-hint">{{ 'account.phoneLocked' | t }}</p>
+      </div>
+      <div class="field">
+        <label for="p-name">{{ 'register.fullName' | t }}</label>
+        <input
+          id="p-name"
+          formControlName="fullName"
+          autocomplete="name"
+          maxlength="120"
+          aria-describedby="p-name-err"
+          data-testid="profile-name"
+        />
+        <app-field-error
+          [control]="profile.controls.fullName"
+          [server]="profileFields()['fullName']"
+          id="p-name-err"
+        />
+      </div>
+      <div class="field">
+        <label for="p-email"
+          >{{ 'register.email' | t }} <small>({{ 'common.optional' | t }})</small></label
+        >
+        <input
+          id="p-email"
+          type="email"
+          formControlName="email"
+          dir="ltr"
+          maxlength="150"
+          autocomplete="email"
+          aria-describedby="p-email-err"
+        />
+        <app-field-error
+          [control]="profile.controls.email"
+          [server]="profileFields()['email']"
+          id="p-email-err"
+        />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button
+        type="submit"
+        class="btn btn--primary"
+        [disabled]="savingProfile()"
+        data-testid="profile-save"
+      >
+        {{ (savingProfile() ? 'common.saving' : 'common.save') | t }}
+      </button>
+    </div>
+  </form>
+
+  <form class="card section-gap" [formGroup]="password" (ngSubmit)="changePassword()" novalidate>
+    <h2>{{ 'account.passwordTitle' | t }}</h2>
+    @if (passwordErrorText(); as message) {
+      <div class="alert alert--danger" role="alert" data-testid="password-error">{{ message }}</div>
+    }
+    <div class="form-grid">
+      <div class="field">
+        <label for="p-current">{{ 'account.currentPassword' | t }}</label>
+        <input
+          id="p-current"
+          type="password"
+          formControlName="currentPassword"
+          dir="ltr"
+          autocomplete="current-password"
+          aria-describedby="p-current-err"
+        />
+        <app-field-error
+          [control]="password.controls.currentPassword"
+          [server]="passwordFields()['currentPassword']"
+          id="p-current-err"
+        />
+      </div>
+      <div class="field">
+        <label for="p-new">{{ 'account.newPassword' | t }}</label>
+        <input
+          id="p-new"
+          type="password"
+          formControlName="newPassword"
+          dir="ltr"
+          autocomplete="new-password"
+          aria-describedby="p-new-hint p-new-err"
+        />
+        <p class="hint" id="p-new-hint">{{ 'register.passwordHint' | t }}</p>
+        <app-field-error
+          [control]="password.controls.newPassword"
+          [server]="passwordFields()['newPassword']"
+          id="p-new-err"
+        />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn" [disabled]="savingPassword()">
+        {{ (savingPassword() ? 'common.saving' : 'account.passwordTitle') | t }}
+      </button>
+    </div>
+  </form>
+</div>

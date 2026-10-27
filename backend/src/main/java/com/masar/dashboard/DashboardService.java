@@ -22,6 +22,8 @@ import com.masar.dashboard.DashboardDtos.RequestRow;
 import com.masar.dashboard.DashboardDtos.ServiceCount;
 import com.masar.request.RequestDtos.JobSlot;
 import com.masar.request.RequestEventRepository;
+import com.masar.payment.PaymentRepository;
+import com.masar.request.PaymentStatus;
 import com.masar.request.RequestStatus;
 import com.masar.request.ServiceRequest;
 import com.masar.request.ServiceRequestRepository;
@@ -41,9 +43,12 @@ public class DashboardService {
     private final RequestEventRepository events;
     private final ServiceTypeRepository services;
     private final BusinessTime time;
+    private final PaymentRepository paymentRepository;
 
     public DashboardService(ServiceRequestRepository requests, RequestEventRepository events,
-                            ServiceTypeRepository services, BusinessTime time) {
+                            ServiceTypeRepository services, BusinessTime time,
+                            PaymentRepository paymentRepository) {
+        this.paymentRepository = paymentRepository;
         this.requests = requests;
         this.events = events;
         this.services = services;
@@ -69,6 +74,8 @@ public class DashboardService {
         var to = time.startOf(monthStart.plusMonths(1));
         BigDecimal revenue = requests.revenue(RequestStatus.COMPLETED, from, to);
         long completed = requests.completedBetween(RequestStatus.COMPLETED, from, to);
+        BigDecimal collected = paymentRepository.collected(from, to);
+        long unpaid = requests.countByStatusAndPaymentStatus(RequestStatus.COMPLETED, PaymentStatus.UNPAID);
 
         long accepted = 0;
         long rejected = 0;
@@ -102,7 +109,7 @@ public class DashboardService {
                 .map(row -> new ServiceCount(ServiceRef.of(byId.get((Long) row[0])), (Long) row[1]))
                 .toList();
 
-        return new DashboardResponse(counts, revenue, completed, acceptanceRate(accepted, rejected), todayJobs,
+        return new DashboardResponse(counts, revenue, completed, collected, unpaid, acceptanceRate(accepted, rejected), todayJobs,
                 waiting, expiring, top);
     }
 

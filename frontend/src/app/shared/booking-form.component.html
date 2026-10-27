@@ -209,7 +209,9 @@
           placeholder="05XXXXXXXX"
           aria-describedby="b-phone-hint b-phone-err"
         />
-        <p class="hint" id="b-phone-hint">{{ 'booking.phoneHint' | t }}</p>
+        <p class="hint" id="b-phone-hint">
+          {{ (mode() === 'account' ? 'account.phoneLocked' : 'booking.phoneHint') | t }}
+        </p>
         <app-field-error
           [control]="form.controls.phone"
           [server]="serverFields()['phone']"
@@ -236,7 +238,7 @@
         />
       </div>
     </div>
-    @if (mode() === 'public') {
+    @if (mode() !== 'office') {
       <!-- Honeypot: off-screen and skipped by keyboard and screen readers, so only bots fill it. -->
       <!-- المصيدة: خارج الشاشة ويتجاوزها الكيبورد وقارئ الشاشة، فما يعبّيها إلا البوتات. -->
       <div class="honeypot" aria-hidden="true">

@@ -31,6 +31,16 @@ services:
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@12345}
       STAFF_PASSWORD: ${STAFF_PASSWORD:-Staff@12345}
+      CUSTOMER_PASSWORD: ${CUSTOMER_PASSWORD:-Customer@12345}
+      # Payments: SANDBOX (built-in test gateway) until real keys are set. / المدفوعات: SANDBOX (بوابة تجريبية) لين تنحط مفاتيح حقيقية.
+      CARD_PAYMENT_PROVIDER: ${CARD_PAYMENT_PROVIDER:-SANDBOX}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8083}
+      MOYASAR_SECRET_KEY: ${MOYASAR_SECRET_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      TABBY_SECRET_KEY: ${TABBY_SECRET_KEY:-}
+      TABBY_MERCHANT_CODE: ${TABBY_MERCHANT_CODE:-}
+      TAMARA_API_URL: ${TAMARA_API_URL:-https://api-sandbox.tamara.co}
+      TAMARA_API_TOKEN: ${TAMARA_API_TOKEN:-}
       # Public form limits per visitor IP, per 10 minutes. / حدود النماذج العامة لكل IP زائر، كل 10 دقائق.
       RATE_LIMIT_BOOKINGS: ${RATE_LIMIT_BOOKINGS:-5}
       RATE_LIMIT_LOOKUPS: ${RATE_LIMIT_LOOKUPS:-30}

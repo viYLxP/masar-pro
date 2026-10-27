@@ -115,6 +115,13 @@ public class RequestController {
 
     @PostMapping("/{id}/complete")
     public RequestDetail complete(@PathVariable Long id, @Valid @RequestBody CompleteRequest body) {
-        return scheduling.complete(id, body.note(), body.version());
+        return scheduling.complete(id, body.note(), body.cashCollected(), body.version());
+    }
+
+    // Cash or a confirmed transfer, recorded by the office or the assigned technician.
+    // كاش أو تحويل مؤكد، يسجله المكتب أو الفني المعيّن.
+    @PostMapping("/{id}/payments/cash")
+    public RequestDetail recordCash(@PathVariable Long id, @Valid @RequestBody VersionRequest body) {
+        return requests.recordCash(id, body.version());
     }
 }

@@ -18,6 +18,7 @@ import com.masar.common.City;
 import com.masar.common.ErrorCode;
 import com.masar.common.Text;
 import com.masar.common.Versions;
+import com.masar.payment.PaymentService;
 import com.masar.request.RequestDtos.DayBoard;
 import com.masar.request.RequestDtos.JobCard;
 import com.masar.request.RequestDtos.JobSlot;
@@ -47,10 +48,13 @@ public class SchedulingService {
     private final RequestHistory history;
     private final CurrentUserService currentUser;
     private final BusinessTime time;
+    private final PaymentService payments;
 
     public SchedulingService(ServiceRequestRepository requests, AppUserRepository users,
                              RequestService requestService, RequestHistory history, CurrentUserService currentUser,
-                             BusinessTime time) {
+                             BusinessTime time,
+                             PaymentService payments) {
+        this.payments = payments;
         this.requests = requests;
         this.users = users;
         this.requestService = requestService;
@@ -130,7 +134,7 @@ public class SchedulingService {
     }
 
     @Transactional
-    public RequestDetail complete(Long id, String note, Long version) {
+    public RequestDetail complete(Long id, String note, boolean cashCollected, Long version) {
         ServiceRequest request = requestService.find(id);
         requestService.requireAccess(request);
         Versions.check(request.getVersion(), version);
@@ -138,6 +142,11 @@ public class SchedulingService {
         request.setCompletedAt(time.now());
         request.setCompletionNote(Text.blankToNull(note));
         history.staff(request, from, note, time.now());
+        // Ticked on the completion form when the customer paid the technician in cash.
+        // ينختار في نموذج الإنهاء لما العميل يدفع للفني كاش.
+        if (cashCollected) {
+            payments.recordCash(request);
+        }
         return requestService.detail(request);
     }
 

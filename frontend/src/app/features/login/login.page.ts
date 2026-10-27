@@ -27,6 +27,9 @@ export class LoginPage {
   // "?expired=1" is added by the interceptor when the session ended, so we can explain why the user is here.
   // "?expired=1" يضيفه الـ interceptor لما تنتهي الجلسة، حتى نوضح للمستخدم ليش رجع هنا.
   readonly expired = input<string | undefined>();
+  // "?returnUrl=/account/..." from the customer guard: go back there after signing in.
+  // "?returnUrl=/account/..." من حارس العميل: نرجع له بعد الدخول.
+  readonly returnUrl = input<string | undefined>();
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     username: ['', [Validators.required, Validators.maxLength(50)]],
@@ -53,7 +56,7 @@ export class LoginPage {
     this.apiError.set(null);
     const { username, password } = this.form.getRawValue();
     this.auth.login(username.trim(), password).subscribe({
-      next: () => void this.router.navigateByUrl(this.auth.home()),
+      next: () => void this.router.navigateByUrl(this.target()),
       error: (err: unknown) => {
         this.submitting.set(false);
         // Translate the server error code (e.g. BAD_CREDENTIALS) into the current language.
@@ -61,5 +64,12 @@ export class LoginPage {
         this.apiError.set(toApiError(err));
       },
     });
+  }
+
+  // Only a path inside this site is followed ("//evil.com" is another site), so the link cannot send people away.
+  // نتبع بس مسار داخل الموقع ("//evil.com" موقع ثاني)، حتى الرابط ما يودّي الناس لمكان ثاني.
+  private target(): string {
+    const url = this.returnUrl();
+    return url && url.startsWith('/') && !url.startsWith('//') ? url : this.auth.home();
   }
 }

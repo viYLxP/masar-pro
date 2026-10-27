@@ -15,6 +15,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.masar.catalog.ServiceType;
+import com.masar.user.AppUser;
 
 /**
  * Database access for requests. Lists load the service and technician in the same query (no N+1).
@@ -28,6 +29,10 @@ public interface ServiceRequestRepository extends JpaRepository<ServiceRequest, 
     boolean existsByReference(String reference);
 
     Optional<ServiceRequest> findByReference(String reference);
+
+    // The customer's "My requests", newest first. / "طلباتي" للعميل، الأحدث أول.
+    @EntityGraph(attributePaths = {"serviceType", "quote"})
+    List<ServiceRequest> findByCustomerOrderByCreatedAtDesc(AppUser customer);
 
     /**
      * Jobs of one technician that overlap [start, end). Two windows overlap when each starts before the other ends,
@@ -72,6 +77,8 @@ public interface ServiceRequestRepository extends JpaRepository<ServiceRequest, 
                                 @Param("done") RequestStatus done, @Param("since") Instant since);
 
     // ----- Dashboard / لوحة التحكم -----
+
+    long countByStatusAndPaymentStatus(RequestStatus status, PaymentStatus paymentStatus);
 
     @Query("select r.status, count(r) from ServiceRequest r group by r.status")
     List<Object[]> countByStatus();

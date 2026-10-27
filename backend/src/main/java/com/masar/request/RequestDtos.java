@@ -20,6 +20,8 @@ import jakarta.validation.constraints.Size;
 
 import com.masar.catalog.ServiceTypeDtos.ServiceRef;
 import com.masar.common.City;
+import com.masar.payment.PaymentDtos.PaymentSummary;
+import com.masar.payment.PaymentDtos.PaymentView;
 import com.masar.user.UserRef;
 
 /**
@@ -89,7 +91,9 @@ public final class RequestDtos {
     public record ReasonRequest(@NotBlank @Size(max = 255) String reason, @NotNull Long version) {
     }
 
-    public record CompleteRequest(@Size(max = 1000) String note, @NotNull Long version) {
+    // cashCollected: the technician took the payment in cash at the end of the visit.
+    // cashCollected: الفني استلم المبلغ كاش في نهاية الزيارة.
+    public record CompleteRequest(@Size(max = 1000) String note, boolean cashCollected, @NotNull Long version) {
     }
 
     public record VersionRequest(@NotNull Long version) {
@@ -131,13 +135,13 @@ public final class RequestDtos {
                                  String district, ServiceRef service, LocalDate preferredDate,
                                  TimeSlot preferredSlot, RequestStatus status, UserRef technician,
                                  Instant scheduledStart, Instant scheduledEnd, BigDecimal quoteTotal,
-                                 Instant createdAt) {
+                                 PaymentStatus paymentStatus, Instant createdAt) {
 
         public static RequestSummary from(ServiceRequest r) {
             return new RequestSummary(r.getId(), r.getReference(), r.getCustomerName(), r.getPhone(), r.getCity(),
                     r.getDistrict(), ServiceRef.of(r.getServiceType()), r.getPreferredDate(), r.getPreferredSlot(),
                     r.getStatus(), UserRef.of(r.getTechnician()), r.getScheduledStart(), r.getScheduledEnd(),
-                    r.getQuote() == null ? null : r.getQuote().getTotal(), r.getCreatedAt());
+                    r.getQuote() == null ? null : r.getQuote().getTotal(), r.getPaymentStatus(), r.getCreatedAt());
         }
     }
 
@@ -149,9 +153,11 @@ public final class RequestDtos {
                                 UserRef technician, Instant scheduledStart, Instant scheduledEnd,
                                 Instant startedAt, Instant completedAt, String completionNote,
                                 String rejectReason, String cancelReason, QuoteView quote,
-                                List<EventView> history, Instant createdAt, Long version) {
+                                List<EventView> history, PaymentStatus paymentStatus, List<PaymentView> payments,
+                                boolean registeredCustomer, Instant createdAt, Long version) {
 
-        public static RequestDetail from(ServiceRequest r, List<RequestEvent> events, LocalDate today) {
+        public static RequestDetail from(ServiceRequest r, List<RequestEvent> events, LocalDate today,
+                                         List<PaymentView> payments) {
             return new RequestDetail(r.getId(), r.getReference(), r.getStatus(), r.getCustomerName(), r.getPhone(),
                     r.getEmail(), r.getCity(), r.getDistrict(), r.getAddress(), r.getPropertyType(),
                     ServiceRef.of(r.getServiceType()), r.getServiceType().getDurationMinutes(),
@@ -159,7 +165,7 @@ public final class RequestDtos {
                     r.getScheduledStart(), r.getScheduledEnd(), r.getStartedAt(), r.getCompletedAt(),
                     r.getCompletionNote(), r.getRejectReason(), r.getCancelReason(),
                     QuoteView.of(r.getQuote(), today), events.stream().map(EventView::of).toList(),
-                    r.getCreatedAt(), r.getVersion());
+                    r.getPaymentStatus(), payments, r.getCustomer() != null, r.getCreatedAt(), r.getVersion());
         }
     }
 
@@ -171,9 +177,10 @@ public final class RequestDtos {
                              City city, String district, LocalDate preferredDate, TimeSlot preferredSlot,
                              QuoteView quote, String technicianName, Instant scheduledStart, Instant scheduledEnd,
                              Instant completedAt, String rejectReason, String cancelReason,
-                             List<PublicEvent> history, Instant createdAt) {
+                             List<PublicEvent> history, PaymentSummary payment, Instant createdAt) {
 
-        public static PublicView from(ServiceRequest r, List<RequestEvent> events, LocalDate today) {
+        public static PublicView from(ServiceRequest r, List<RequestEvent> events, LocalDate today,
+                                      PaymentSummary payment) {
             // A quote is shown only after it was sent: a draft the office is still writing stays private.
             // العرض يظهر بس بعد ما ينرسل: المسودة اللي المكتب لسا يكتبها تبقى خاصة.
             Quote quote = r.getQuote() != null && r.getQuote().getSentAt() != null ? r.getQuote() : null;
@@ -184,11 +191,25 @@ public final class RequestDtos {
                     r.getScheduledStart(), r.getScheduledEnd(), r.getCompletedAt(), r.getRejectReason(),
                     r.getCancelReason(),
                     events.stream().map(e -> new PublicEvent(e.getToStatus(), e.getCreatedAt())).toList(),
-                    r.getCreatedAt());
+                    payment, r.getCreatedAt());
         }
     }
 
     public record PublicEvent(RequestStatus status, Instant at) {
+    }
+
+    // A row in the customer's "My requests" list. / صف في قائمة "طلباتي" عند العميل.
+    public record AccountRequestRow(String reference, RequestStatus status, ServiceRef service, City city,
+                                    String district, LocalDate preferredDate, TimeSlot preferredSlot,
+                                    Instant scheduledStart, BigDecimal quoteTotal, PaymentStatus paymentStatus,
+                                    boolean payable, Instant createdAt) {
+    }
+
+    // Adds a request booked as a guest to the account. / يضيف طلب انحجز كزائر للحساب.
+    public record ClaimRequest(@NotBlank @Size(max = 20) String reference) {
+    }
+
+    public record RejectRequest(@NotBlank @Size(max = 255) String reason) {
     }
 
     // ----- Calendar / الجدول -----

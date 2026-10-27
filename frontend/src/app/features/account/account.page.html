@@ -1,0 +1,105 @@
+<div class="page-narrow">
+  <header class="page-header">
+    <div>
+      <h1>{{ 'account.title' | t }}</h1>
+      <p>{{ 'account.hello' | t: { name: auth.user()?.fullName ?? '' } }}</p>
+    </div>
+    <div class="page-header__actions">
+      <a class="btn" routerLink="/account/profile" data-testid="account-profile">
+        <app-icon name="user" /> {{ 'account.profile' | t }}
+      </a>
+      <a class="btn btn--primary" routerLink="/book" data-testid="account-book">
+        <app-icon name="plus" /> {{ 'account.book' | t }}
+      </a>
+    </div>
+  </header>
+
+  @if (requests.error()) {
+    <div class="alert alert--danger" role="alert">
+      {{ 'app.loadFailed' | t }}
+      <button type="button" class="btn btn--small" (click)="requests.reload()">
+        {{ 'app.retry' | t }}
+      </button>
+    </div>
+  } @else if (requests.isLoading() && !requests.hasValue()) {
+    <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+  } @else {
+    <ul class="account-list" data-testid="account-requests">
+      @for (r of requests.value() ?? []; track r.reference) {
+        <li class="card account-row">
+          <div class="account-row__main">
+            <p class="eyebrow" dir="ltr">{{ r.reference }}</p>
+            <h2>
+              <a [routerLink]="['/account/requests', r.reference]" class="row-link">{{
+                name(r)
+              }}</a>
+            </h2>
+            <p class="muted">
+              <bdi>{{ r.district }}</bdi
+              >, {{ 'city.' + r.city | t }} ·
+              @if (r.scheduledStart) {
+                {{ fmt.dateTime(r.scheduledStart) }}
+              } @else {
+                {{ fmt.plainDate(r.preferredDate) }} · {{ 'slot.' + r.preferredSlot | t }}
+              }
+            </p>
+            <p class="account-row__badges">
+              <app-status-badge [status]="r.status" />
+              @if (r.quoteTotal !== null) {
+                <app-payment-badge [status]="r.paymentStatus" />
+                <strong class="num">{{ fmt.money(r.quoteTotal) }}</strong>
+              }
+            </p>
+          </div>
+          <div class="account-row__actions">
+            @if (r.payable) {
+              <a
+                class="btn btn--accent"
+                [routerLink]="['/account/requests', r.reference]"
+                [attr.data-testid]="'pay-' + r.reference"
+                >{{ 'account.payNow' | t }}</a
+              >
+            }
+            <a class="btn" [routerLink]="['/account/requests', r.reference]">{{
+              'account.open' | t
+            }}</a>
+          </div>
+        </li>
+      } @empty {
+        <li class="card empty-state">
+          <p>{{ 'account.empty' | t }}</p>
+          <a class="btn btn--primary" routerLink="/book">{{ 'account.emptyCta' | t }}</a>
+        </li>
+      }
+    </ul>
+  }
+
+  <form class="card section-gap" [formGroup]="claimForm" (ngSubmit)="claim()" novalidate>
+    <h2>{{ 'account.claimTitle' | t }}</h2>
+    <p class="muted">{{ 'account.claimText' | t }}</p>
+    @if (claimErrorText(); as message) {
+      <div class="alert alert--danger" role="alert" data-testid="claim-error">{{ message }}</div>
+    }
+    <div class="inline-form">
+      <div class="field">
+        <label for="c-ref">{{ 'account.claimReference' | t }}</label>
+        <input
+          id="c-ref"
+          formControlName="reference"
+          dir="ltr"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="20"
+          [placeholder]="'track.referencePlaceholder' | t"
+          aria-describedby="c-ref-err"
+          data-testid="claim-reference"
+        />
+        <app-field-error [control]="claimForm.controls.reference" id="c-ref-err" />
+      </div>
+      <button type="submit" class="btn" [disabled]="claiming()" data-testid="claim-submit">
+        {{ 'account.claimSubmit' | t }}
+      </button>
+    </div>
+  </form>
+</div>

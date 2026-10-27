@@ -1,0 +1,289 @@
+<div class="page-narrow pay-page">
+  @if (payment.error()) {
+    <div class="alert alert--danger" role="alert" data-testid="pay-load-error">
+      {{ loadErrorText() }}
+    </div>
+    <a class="btn" routerLink="/">{{ 'notFound.home' | t }}</a>
+  } @else if (payment.isLoading() && !payment.hasValue()) {
+    <div class="loading" role="status"><span class="spinner"></span>{{ 'app.loading' | t }}</div>
+  } @else if (payment.value(); as p) {
+    @let back = backLink(p.reference);
+    <header class="page-header page-header--center">
+      <div>
+        <p class="pay-page__label"><app-icon name="lock" /> {{ 'checkout.title' | t }}</p>
+        <h1 data-testid="pay-amount">{{ fmt.money(p.amount) }}</h1>
+        <p>
+          {{ 'checkout.summary' | t: { service: serviceLabel(), reference: p.reference } }}
+          · {{ 'payment.method.' + p.method | t }}
+        </p>
+      </div>
+    </header>
+
+    @if (p.status === 'PAID') {
+      <section class="success-card" data-testid="pay-success">
+        <span class="success-card__icon" aria-hidden="true"><app-icon name="check" /></span>
+        <h2>{{ 'checkout.paidTitle' | t }}</h2>
+        <p>
+          {{ 'checkout.paidText' | t: { amount: fmt.money(p.amount), reference: p.reference } }}
+        </p>
+        @if (p.cardLast4) {
+          <p class="muted" dir="auto">
+            {{ 'payment.card' | t: { brand: p.cardBrand ?? '', last4: p.cardLast4 } }} ·
+            {{ fmt.dateTime(p.paidAt) }}
+          </p>
+        }
+        <div class="success-card__actions">
+          <a class="btn btn--primary" [routerLink]="back.link" [queryParams]="back.query">{{
+            'checkout.back' | t
+          }}</a>
+        </div>
+      </section>
+    } @else if (p.status === 'REFUNDED' || closed()) {
+      <section class="card" data-testid="pay-closed">
+        <h2>{{ (closed() ? 'checkout.closedTitle' : 'checkout.refundedTitle') | t }}</h2>
+        @if (closed()) {
+          <p class="muted">{{ 'checkout.closedText' | t }}</p>
+        }
+        <a class="btn btn--primary" [routerLink]="back.link" [queryParams]="back.query">{{
+          'checkout.back' | t
+        }}</a>
+      </section>
+    } @else if (p.provider !== 'SANDBOX') {
+      <!-- A real gateway: its own page takes the card details. / بوابة حقيقية: صفحتها هي اللي تاخذ بيانات البطاقة. -->
+      <section class="card" data-testid="pay-gateway">
+        @if (failureText(); as message) {
+          <div class="alert alert--danger" role="alert">{{ message }}</div>
+          <a class="btn" [routerLink]="back.link" [queryParams]="back.query">{{
+            'checkout.back' | t
+          }}</a>
+        } @else if (returned()) {
+          <p role="status">{{ 'checkout.confirming' | t: { provider: providerName() } }}</p>
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="payment.reload()"
+            [disabled]="payment.isLoading()"
+          >
+            {{ 'checkout.checkAgain' | t }}
+          </button>
+        } @else {
+          <p>{{ 'checkout.redirectText' | t: { provider: providerName() } }}</p>
+          <button type="button" class="btn btn--accent btn--block" (click)="continueToGateway(p)">
+            <app-icon name="lock" /> {{ 'checkout.redirect' | t: { provider: providerName() } }}
+          </button>
+        }
+      </section>
+    } @else {
+      <p class="alert alert--info" data-testid="sandbox-banner">{{ 'checkout.testMode' | t }}</p>
+      @if (failureText(); as message) {
+        <div class="alert alert--danger" role="alert" data-testid="pay-failed">
+          {{ message }} {{ 'checkout.tryAgain' | t }}
+        </div>
+      }
+      @if (errorText(); as message) {
+        <div class="alert alert--danger" role="alert" data-testid="pay-error">{{ message }}</div>
+      }
+
+      @switch (p.method) {
+        @case ('CARD') {
+          <form class="card" [formGroup]="card" (ngSubmit)="payByCard(p)" novalidate>
+            <div class="field">
+              <label for="c-number">{{ 'checkout.cardNumber' | t }}</label>
+              <input
+                id="c-number"
+                formControlName="cardNumber"
+                inputmode="numeric"
+                autocomplete="cc-number"
+                dir="ltr"
+                maxlength="23"
+                placeholder="0000 0000 0000 0000"
+                aria-describedby="c-number-err"
+                data-testid="card-number"
+              />
+              <app-field-error
+                [control]="card.controls.cardNumber"
+                [server]="serverFields()['cardNumber']"
+                patternKey="validation.CardNumber"
+                id="c-number-err"
+              />
+            </div>
+            <div class="form-grid form-grid--3">
+              <div class="field">
+                <label for="c-month">{{ 'checkout.expMonth' | t }}</label>
+                <input
+                  id="c-month"
+                  formControlName="expMonth"
+                  inputmode="numeric"
+                  autocomplete="cc-exp-month"
+                  dir="ltr"
+                  maxlength="2"
+                  placeholder="MM"
+                  aria-describedby="c-month-err"
+                />
+                <app-field-error
+                  [control]="card.controls.expMonth"
+                  [server]="serverFields()['expMonth']"
+                  id="c-month-err"
+                />
+              </div>
+              <div class="field">
+                <label for="c-year">{{ 'checkout.expYear' | t }}</label>
+                <input
+                  id="c-year"
+                  formControlName="expYear"
+                  inputmode="numeric"
+                  autocomplete="cc-exp-year"
+                  dir="ltr"
+                  maxlength="4"
+                  placeholder="YY"
+                  aria-describedby="c-year-err"
+                />
+                <app-field-error
+                  [control]="card.controls.expYear"
+                  [server]="serverFields()['expYear']"
+                  id="c-year-err"
+                />
+              </div>
+              <div class="field">
+                <label for="c-cvc">{{ 'checkout.cvc' | t }}</label>
+                <input
+                  id="c-cvc"
+                  formControlName="cvc"
+                  inputmode="numeric"
+                  autocomplete="cc-csc"
+                  dir="ltr"
+                  maxlength="4"
+                  aria-describedby="c-cvc-err"
+                />
+                <app-field-error
+                  [control]="card.controls.cvc"
+                  [server]="serverFields()['cvc']"
+                  id="c-cvc-err"
+                />
+              </div>
+            </div>
+            <div class="field">
+              <label for="c-holder">{{ 'checkout.cardHolder' | t }}</label>
+              <input
+                id="c-holder"
+                formControlName="cardHolder"
+                autocomplete="cc-name"
+                dir="auto"
+                maxlength="100"
+                aria-describedby="c-holder-err"
+              />
+              <app-field-error
+                [control]="card.controls.cardHolder"
+                [server]="serverFields()['cardHolder']"
+                id="c-holder-err"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn btn--accent btn--block"
+              [disabled]="busy()"
+              data-testid="card-submit"
+            >
+              <app-icon name="lock" />
+              {{
+                (busy() ? 'checkout.processing' : 'checkout.submit')
+                  | t: { amount: fmt.money(p.amount) }
+              }}
+            </button>
+          </form>
+
+          <section class="card section-gap" aria-labelledby="test-cards-title">
+            <h2 id="test-cards-title">{{ 'checkout.testCards' | t }}</h2>
+            <p class="hint">{{ 'checkout.testCardsHint' | t }}</p>
+            <ul class="list">
+              @for (c of testCards; track c.number) {
+                <li>
+                  <div class="list__main">
+                    <span class="mono" dir="ltr">{{ c.number }}</span>
+                    <span class="list__sub">{{ c.brand }} · {{ 'checkout.' + c.result | t }}</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn--small"
+                    (click)="useCard(c.number)"
+                    [attr.data-testid]="'use-card-' + c.number.slice(-4)"
+                  >
+                    {{ 'checkout.use' | t }}
+                  </button>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        @case ('APPLE_PAY') {
+          <section class="card wallet-sheet" data-testid="apple-pay-sheet">
+            <p class="wallet-sheet__brand" dir="ltr">Apple Pay</p>
+            <dl class="detail-list">
+              <div>
+                <dt>{{ 'checkout.amount' | t }}</dt>
+                <dd>
+                  <strong>{{ fmt.money(p.amount) }}</strong>
+                </dd>
+              </div>
+            </dl>
+            <p class="muted">{{ 'checkout.applePayText' | t: { amount: fmt.money(p.amount) } }}</p>
+            <div class="form-actions">
+              <button type="button" class="btn" (click)="answer(p, false)" [disabled]="busy()">
+                {{ 'checkout.cancel' | t }}
+              </button>
+              <button
+                type="button"
+                class="btn btn--primary"
+                (click)="answer(p, true)"
+                [disabled]="busy()"
+                data-testid="wallet-confirm"
+              >
+                {{ 'checkout.applePayConfirm' | t }}
+              </button>
+            </div>
+          </section>
+        }
+        @default {
+          <!-- Tabby and Tamara: the instalment plan the customer agrees to. / تابي وتمارا: خطة التقسيط اللي يوافق عليها العميل. -->
+          <section class="card" data-testid="bnpl-sheet">
+            <h2>
+              {{
+                'checkout.bnplTitle'
+                  | t: { provider: ('payment.method.' + p.method | t), count: p.instalments.length }
+              }}
+            </h2>
+            <p class="muted">{{ 'checkout.bnplText' | t }}</p>
+            <ol class="pay-plan__list" data-testid="bnpl-plan">
+              @for (i of p.instalments; track i.number) {
+                <li>
+                  <span>{{ 'payment.instalment' | t: { n: fmt.number(i.number) } }}</span>
+                  <span class="muted">{{
+                    $first ? ('payment.dueToday' | t) : fmt.plainDate(i.dueDate)
+                  }}</span>
+                  <strong class="num">{{ fmt.money(i.amount) }}</strong>
+                </li>
+              }
+            </ol>
+            <div class="form-actions">
+              <button type="button" class="btn" (click)="answer(p, false)" [disabled]="busy()">
+                {{ 'checkout.cancel' | t }}
+              </button>
+              <button
+                type="button"
+                class="btn btn--primary"
+                (click)="answer(p, true)"
+                [disabled]="busy()"
+                data-testid="bnpl-confirm"
+              >
+                {{ 'checkout.bnplConfirm' | t }}
+              </button>
+            </div>
+          </section>
+        }
+      }
+      <p class="section-gap">
+        <a [routerLink]="back.link" [queryParams]="back.query">{{ 'checkout.back' | t }}</a>
+      </p>
+    }
+  }
+</div>

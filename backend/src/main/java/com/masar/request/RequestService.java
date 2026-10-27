@@ -23,6 +23,7 @@ import com.masar.common.PageResponse;
 import com.masar.common.Phones;
 import com.masar.common.Text;
 import com.masar.common.Versions;
+import com.masar.payment.PaymentService;
 import com.masar.request.RequestDtos.QuoteRequest;
 import com.masar.request.RequestDtos.RequestDetail;
 import com.masar.request.RequestDtos.RequestSummary;
@@ -45,9 +46,12 @@ public class RequestService {
     private final CurrentUserService currentUser;
     private final BusinessTime time;
     private final EntityManager entityManager;
+    private final PaymentService payments;
 
     public RequestService(ServiceRequestRepository requests, RequestEventRepository events, RequestHistory history,
-                          CurrentUserService currentUser, BusinessTime time, EntityManager entityManager) {
+                          CurrentUserService currentUser, BusinessTime time, EntityManager entityManager,
+                          PaymentService payments) {
+        this.payments = payments;
         this.entityManager = entityManager;
         this.requests = requests;
         this.events = events;
@@ -203,7 +207,23 @@ public class RequestService {
         Versions.check(request.getVersion(), version);
         RequestStatus from = request.moveTo(RequestStatus.CANCELLED);
         request.setCancelReason(reason.trim());
+        // A paid request gets its money back; this runs before the commit, so a failed refund keeps it open.
+        // الطلب المدفوع يرجع مبلغه؛ وهذا يصير قبل الحفظ، فلو فشل الاسترجاع يبقى الطلب مفتوح.
+        payments.refundIfPaid(request);
         history.staff(request, from, reason, time.now());
+        return detail(request);
+    }
+
+    /**
+     * Records a payment received outside the site (cash to the technician, or a transfer the office confirmed).
+     * يسجّل دفعة وصلت برا الموقع (كاش للفني، أو تحويل تأكد منه المكتب).
+     */
+    @Transactional
+    public RequestDetail recordCash(Long id, Long version) {
+        ServiceRequest request = find(id);
+        requireAccess(request);
+        Versions.check(request.getVersion(), version);
+        payments.recordCash(request);
         return detail(request);
     }
 
@@ -232,7 +252,8 @@ public class RequestService {
      */
     RequestDetail detail(ServiceRequest request) {
         entityManager.flush();
-        return RequestDetail.from(request, events.findByRequestOrderByCreatedAtAscIdAsc(request), time.today());
+        return RequestDetail.from(request, events.findByRequestOrderByCreatedAtAscIdAsc(request), time.today(),
+                payments.history(request));
     }
 
     private static ApiException fieldError(String field, String rule) {
