@@ -1,0 +1,230 @@
+# Production server for the three Pro portfolio apps (Masar, StockMate, ClientFlow) on one machine.
+# Caddy is the only public entry (ports 80/443) and gets free HTTPS certificates automatically;
+# each app keeps its own private network and database, and runs the images CI published to ghcr.io.
+# سيرفر الإنتاج لمشاريع Pro الثلاثة (مسار، StockMate، ClientFlow) على جهاز واحد.
+# Caddy هو المدخل العام الوحيد (المنافذ 80/443) ويجيب شهادات HTTPS مجانية تلقائيًا؛
+# وكل تطبيق له شبكة خاصة وقاعدة بيانات مستقلة، ويشغّل الصور اللي نشرها CI في ghcr.io.
+#
+# Usage: see deploy/README.md (first time: sudo bash deploy/setup.sh).
+# الاستخدام: شوف deploy/README.md (أول مرة: sudo bash deploy/setup.sh).
+
+name: pro-apps
+
+# Shared settings, merged into every service below. / إعدادات مشتركة تندمج في كل خدمة تحت.
+x-common: &common
+  restart: unless-stopped
+  # Rotate container logs so they cannot fill the disk. / تدوير سجلات الحاويات حتى ما تملأ القرص.
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '3'
+
+x-db: &db
+  <<: *common
+  image: postgres:17-alpine
+  mem_limit: 384m
+  healthcheck:
+    test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+    interval: 10s
+    timeout: 3s
+    retries: 10
+
+x-backend: &backend
+  <<: *common
+  # The JVM sizes its heap to 75% of this limit (MaxRAMPercentage in the image), so three apps fit on a 4 GB server.
+  # الـ JVM يحدد ذاكرته بـ 75% من هذا الحد (MaxRAMPercentage في الصورة)، فتشتغل التطبيقات الثلاثة على سيرفر 4 جيجا.
+  mem_limit: 700m
+
+x-frontend: &frontend
+  <<: *common
+  mem_limit: 64m
+  volumes:
+    # Lets nginx read the real visitor IP from Caddy, so the per-IP anti-spam limits count each visitor separately.
+    # يخلي nginx يقرأ عنوان الزائر الحقيقي من Caddy، فحدود منع الإزعاج لكل IP تحسب كل زائر لحاله.
+    - ./nginx-real-ip.conf:/etc/nginx/conf.d/00-real-ip.conf:ro
+
+services:
+  caddy:
+    <<: *common
+    image: caddy:2-alpine
+    mem_limit: 128m
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      MASAR_HOST: ${MASAR_HOST:?Set MASAR_HOST in deploy/.env}
+      STOCKMATE_HOST: ${STOCKMATE_HOST:?Set STOCKMATE_HOST in deploy/.env}
+      CLIENTFLOW_HOST: ${CLIENTFLOW_HOST:?Set CLIENTFLOW_HOST in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here; keeping them avoids hitting Let's Encrypt limits on every restart.
+      # الشهادات تنحفظ هنا؛ وحفظها يمنع طلبها من Let's Encrypt من جديد مع كل إعادة تشغيل.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+
+  # ---------------- Masar Pro ----------------
+  masar-db:
+    <<: *db
+    profiles: [masar]
+    environment:
+      POSTGRES_DB: masar
+      POSTGRES_USER: masar
+      POSTGRES_PASSWORD: ${MASAR_DB_PASSWORD:?Run deploy/setup.sh or fill deploy/.env}
+    volumes:
+      - masar-db:/var/lib/postgresql/data
+    networks: [masar]
+
+  masar-backend:
+    <<: *backend
+    profiles: [masar]
+    image: ghcr.io/viylxp/masar-pro-backend:${MASAR_TAG:-latest}
+    environment:
+      DB_URL: jdbc:postgresql://masar-db:5432/masar
+      DB_USERNAME: masar
+      DB_PASSWORD: ${MASAR_DB_PASSWORD}
+      JWT_SECRET: ${MASAR_JWT_SECRET:?Run deploy/setup.sh or fill deploy/.env}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Run deploy/setup.sh or fill deploy/.env}
+      STAFF_PASSWORD: ${STAFF_PASSWORD:-Staff@12345}
+      CUSTOMER_PASSWORD: ${CUSTOMER_PASSWORD:-Customer@12345}
+      PUBLIC_URL: https://${MASAR_HOST}
+      CORS_ORIGINS: https://${MASAR_HOST}
+      CARD_PAYMENT_PROVIDER: ${MASAR_CARD_PAYMENT_PROVIDER:-SANDBOX}
+      MOYASAR_SECRET_KEY: ${MASAR_MOYASAR_SECRET_KEY:-}
+      STRIPE_SECRET_KEY: ${MASAR_STRIPE_SECRET_KEY:-}
+      TABBY_SECRET_KEY: ${MASAR_TABBY_SECRET_KEY:-}
+      TABBY_MERCHANT_CODE: ${MASAR_TABBY_MERCHANT_CODE:-}
+      TAMARA_API_TOKEN: ${MASAR_TAMARA_API_TOKEN:-}
+    depends_on:
+      masar-db:
+        condition: service_healthy
+    networks:
+      masar:
+        # The frontend's nginx proxies /api to "backend", so the API answers to that name inside its own network.
+        # nginx في الفرونت يحوّل /api إلى "backend"، فالـ API يرد على هالاسم داخل شبكته الخاصة.
+        aliases: [backend]
+
+  masar-frontend:
+    <<: *frontend
+    profiles: [masar]
+    image: ghcr.io/viylxp/masar-pro-frontend:${MASAR_TAG:-latest}
+    depends_on:
+      masar-backend:
+        condition: service_healthy
+    networks: [masar, edge]
+
+  # ---------------- StockMate Pro ----------------
+  stockmate-db:
+    <<: *db
+    profiles: [stockmate]
+    environment:
+      POSTGRES_DB: stockmate
+      POSTGRES_USER: stockmate
+      POSTGRES_PASSWORD: ${STOCKMATE_DB_PASSWORD:?Run deploy/setup.sh or fill deploy/.env}
+    volumes:
+      - stockmate-db:/var/lib/postgresql/data
+    networks: [stockmate]
+
+  stockmate-backend:
+    <<: *backend
+    profiles: [stockmate]
+    image: ghcr.io/viylxp/stockmate-pro-backend:${STOCKMATE_TAG:-latest}
+    environment:
+      DB_URL: jdbc:postgresql://stockmate-db:5432/stockmate
+      DB_USERNAME: stockmate
+      DB_PASSWORD: ${STOCKMATE_DB_PASSWORD}
+      JWT_SECRET: ${STOCKMATE_JWT_SECRET:?Run deploy/setup.sh or fill deploy/.env}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      STAFF_PASSWORD: ${STAFF_PASSWORD:-Staff@12345}
+      CUSTOMER_PASSWORD: ${CUSTOMER_PASSWORD:-Customer@12345}
+      PUBLIC_URL: https://${STOCKMATE_HOST}
+      CORS_ORIGINS: https://${STOCKMATE_HOST}
+      CARD_PAYMENT_PROVIDER: ${STOCKMATE_CARD_PAYMENT_PROVIDER:-SANDBOX}
+      MOYASAR_SECRET_KEY: ${STOCKMATE_MOYASAR_SECRET_KEY:-}
+      STRIPE_SECRET_KEY: ${STOCKMATE_STRIPE_SECRET_KEY:-}
+      TABBY_SECRET_KEY: ${STOCKMATE_TABBY_SECRET_KEY:-}
+      TABBY_MERCHANT_CODE: ${STOCKMATE_TABBY_MERCHANT_CODE:-}
+      TAMARA_API_TOKEN: ${STOCKMATE_TAMARA_API_TOKEN:-}
+    depends_on:
+      stockmate-db:
+        condition: service_healthy
+    networks:
+      stockmate:
+        aliases: [backend]
+
+  stockmate-frontend:
+    <<: *frontend
+    profiles: [stockmate]
+    image: ghcr.io/viylxp/stockmate-pro-frontend:${STOCKMATE_TAG:-latest}
+    depends_on:
+      stockmate-backend:
+        condition: service_healthy
+    networks: [stockmate, edge]
+
+  # ---------------- ClientFlow Pro ----------------
+  clientflow-db:
+    <<: *db
+    profiles: [clientflow]
+    environment:
+      POSTGRES_DB: clientflow
+      POSTGRES_USER: clientflow
+      POSTGRES_PASSWORD: ${CLIENTFLOW_DB_PASSWORD:?Run deploy/setup.sh or fill deploy/.env}
+    volumes:
+      - clientflow-db:/var/lib/postgresql/data
+    networks: [clientflow]
+
+  clientflow-backend:
+    <<: *backend
+    profiles: [clientflow]
+    image: ghcr.io/viylxp/clientflow-pro-backend:${CLIENTFLOW_TAG:-latest}
+    environment:
+      DB_URL: jdbc:postgresql://clientflow-db:5432/clientflow
+      DB_USERNAME: clientflow
+      DB_PASSWORD: ${CLIENTFLOW_DB_PASSWORD}
+      JWT_SECRET: ${CLIENTFLOW_JWT_SECRET:?Run deploy/setup.sh or fill deploy/.env}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SALES_PASSWORD: ${SALES_PASSWORD:-Sales@12345}
+      CLIENT_PASSWORD: ${CLIENT_PASSWORD:-Client@12345}
+      PUBLIC_URL: https://${CLIENTFLOW_HOST}
+      CORS_ORIGINS: https://${CLIENTFLOW_HOST}
+      CARD_PAYMENT_PROVIDER: ${CLIENTFLOW_CARD_PAYMENT_PROVIDER:-SANDBOX}
+      MOYASAR_SECRET_KEY: ${CLIENTFLOW_MOYASAR_SECRET_KEY:-}
+      STRIPE_SECRET_KEY: ${CLIENTFLOW_STRIPE_SECRET_KEY:-}
+      TABBY_SECRET_KEY: ${CLIENTFLOW_TABBY_SECRET_KEY:-}
+      TABBY_MERCHANT_CODE: ${CLIENTFLOW_TABBY_MERCHANT_CODE:-}
+      TAMARA_API_TOKEN: ${CLIENTFLOW_TAMARA_API_TOKEN:-}
+    depends_on:
+      clientflow-db:
+        condition: service_healthy
+    networks:
+      clientflow:
+        aliases: [backend]
+
+  clientflow-frontend:
+    <<: *frontend
+    profiles: [clientflow]
+    image: ghcr.io/viylxp/clientflow-pro-frontend:${CLIENTFLOW_TAG:-latest}
+    depends_on:
+      clientflow-backend:
+        condition: service_healthy
+    networks: [clientflow, edge]
+
+networks:
+  # Caddy talks only to the three frontends; databases and APIs stay on their app's private network.
+  # Caddy يكلم الفرونتات الثلاثة فقط؛ وقواعد البيانات والـ APIs تبقى في شبكة تطبيقها الخاصة.
+  edge:
+  masar:
+  stockmate:
+  clientflow:
+
+volumes:
+  caddy-data:
+  caddy-config:
+  masar-db:
+  stockmate-db:
+  clientflow-db:
