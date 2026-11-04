@@ -1,0 +1,65 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/frontend/browser",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://masar-pro-api.onrender.com/api/:path*"
+    },
+    {
+      "source": "/actuator/health",
+      "destination": "https://masar-pro-api.onrender.com/actuator/health"
+    },
+    {
+      "source": "/swagger-ui.html",
+      "destination": "https://masar-pro-api.onrender.com/swagger-ui.html"
+    },
+    {
+      "source": "/swagger-ui/:path*",
+      "destination": "https://masar-pro-api.onrender.com/swagger-ui/:path*"
+    },
+    {
+      "source": "/v3/api-docs",
+      "destination": "https://masar-pro-api.onrender.com/v3/api-docs"
+    },
+    {
+      "source": "/v3/api-docs/:path*",
+      "destination": "https://masar-pro-api.onrender.com/v3/api-docs/:path*"
+    },
+    {
+      "source": "/((?!api/|actuator/|swagger-ui|v3/api-docs).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(js|css|woff2?)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
