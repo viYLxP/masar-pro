@@ -87,7 +87,7 @@ The customer pays on the gateway's own page and comes back to `/pay/:id?returned
 Every green CI run on `main` publishes ready-to-run images for amd64 and arm64:
 `ghcr.io/viylxp/masar-pro-backend` and `ghcr.io/viylxp/masar-pro-frontend` (workflow `release.yml`).
 The production server runs this app together with the other two Pro apps behind Caddy with automatic HTTPS,
-nightly database backups, an optional nightly demo-data reset and automatic updates. Server files and steps: [`deploy/`](deploy/README.md).
+nightly database backups, an optional nightly demo-data reset and automatic updates. Free-tier alternative (Vercel for the Angular app, Render for the API, Supabase for PostgreSQL; `render.yaml` and `frontend/vercel.json` are in this repo): [`deploy/vercel-render-supabase.md`](deploy/vercel-render-supabase.md). Server files and steps: [`deploy/`](deploy/README.md).
 
 ## Local development
 
@@ -183,7 +183,7 @@ docker compose up --build
 
 كل تشغيل CI ناجح على `main` ينشر صور جاهزة (amd64 وarm64) في `ghcr.io/viylxp/masar-pro-backend` و`-frontend`.
 والسيرفر يشغّل هذا التطبيق مع تطبيقي Pro الثانيين خلف Caddy بشهادة HTTPS تلقائية، ونسخ احتياطي يومي،
-وتصفير اختياري لبيانات العرض كل ليلة، وتحديث تلقائي. الملفات والخطوات: [`deploy/`](deploy/README.md).
+وتصفير اختياري لبيانات العرض كل ليلة، وتحديث تلقائي. وبديل مجاني (Vercel للواجهة وRender للـ API وSupabase لقاعدة البيانات): [`deploy/vercel-render-supabase.md`](deploy/vercel-render-supabase.md). الملفات والخطوات: [`deploy/`](deploy/README.md).
 
 ### الاختبارات
 
